@@ -17,17 +17,16 @@
     <div id="root"></div>
 
     <!-- Dependencies -->
-    <script crossOrigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossOrigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     
     <!-- Firebase SDK -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, doc, setDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
+    <script type="text/babel">
         // Constants & Keys
         const firebaseConfig = {
             apiKey: "AIzaSyDIGLmJ5r_fBhB5xOL8oadQ7csN3wGh2dI",
@@ -40,12 +39,11 @@
         const IMGBB_API_KEY = "b733862d15744e2bfaa4329d122f4ba0";
 
         // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+        const app = firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore(app);
 
         // --- React Logic Starts Here ---
         const { useState, useEffect, useMemo } = React;
-        const { motion, AnimatePresence } = window.Motion;
 
         function App() {
             const [loading, setLoading] = useState(true);
@@ -54,23 +52,41 @@
             const [directors, setDirectors] = useState([]);
             const [coaches, setCoaches] = useState([]);
             const [stores, setStores] = useState([]);
+            const [originalDirectors, setOriginalDirectors] = useState([]);
             const [originalCoaches, setOriginalCoaches] = useState([]);
             const [originalStores, setOriginalStores] = useState([]);
             const [showDiff, setShowDiff] = useState(false);
             const [showAddModal, setShowAddModal] = useState(null);
+            const [editTarget, setEditTarget] = useState(null);
+            const [detailModal, setDetailModal] = useState(null);
             const [formData, setFormData] = useState({});
             const [selectedFile, setSelectedFile] = useState(null);
+            const [dragItem, setDragItem] = useState(null);
+            const STORE_TYPES = ["Fast Food", "C-Store", "Car Wash"];
+            const STORE_NAMES = ["Paradise Quick Stop", "Burger King", "Subway", "Nashville", "Scarborough Car Wash", "Scarborough Travel Stop"];
+
+            const sortByOrder = (items) => [...items].sort((a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER));
+            const formatPhone = (raw = "") => {
+                const digits = raw.replace(/\D/g, "").slice(0, 10);
+                if (digits.length <= 3) return digits;
+                if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+                return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+            };
 
             // Load Data
             useEffect(() => {
-                const unsubD = onSnapshot(collection(db, "directors"), (s) => setDirectors(s.docs.map(d => ({id: d.id, ...d.data()}))));
-                const unsubC = onSnapshot(collection(db, "coaches"), (s) => {
-                    const data = s.docs.map(d => ({id: d.id, ...d.data()}));
+                const unsubD = db.collection("directors").onSnapshot((s) => {
+                    const data = sortByOrder(s.docs.map(d => ({id: d.id, ...d.data()})));
+                    setDirectors(data);
+                    setOriginalDirectors(data);
+                });
+                const unsubC = db.collection("coaches").onSnapshot((s) => {
+                    const data = sortByOrder(s.docs.map(d => ({id: d.id, ...d.data()})));
                     setCoaches(data);
                     setOriginalCoaches(data);
                 });
-                const unsubS = onSnapshot(collection(db, "stores"), (s) => {
-                    const data = s.docs.map(d => ({id: d.id, ...d.data()}));
+                const unsubS = db.collection("stores").onSnapshot((s) => {
+                    const data = sortByOrder(s.docs.map(d => ({id: d.id, ...d.data()})));
                     setStores(data);
                     setOriginalStores(data);
                     setLoading(false);
@@ -95,23 +111,95 @@
                         const url = await uploadImage(selectedFile);
                         if (url) finalData.profilePic = url;
                     }
-                    const id = Math.random().toString(36).substr(2, 9);
+
                     const coll = showAddModal === 'director' ? 'directors' : showAddModal === 'coach' ? 'coaches' : 'stores';
-                    await setDoc(doc(db, coll, id), finalData);
+                    if (editTarget?.id) {
+                        await db.collection(coll).doc(editTarget.id).set(finalData, { merge: true });
+                    } else {
+                        const newId = Math.random().toString(36).substr(2, 9);
+                        if (showAddModal === 'director') finalData.order = directors.length;
+                        if (showAddModal === 'coach') finalData.order = coaches.length;
+                        if (showAddModal === 'store') finalData.order = stores.length;
+                        await db.collection(coll).doc(newId).set(finalData);
+                    }
+                    setEditTarget(null);
                     setShowAddModal(null); setFormData({}); setSelectedFile(null);
                 } catch (err) { console.error(err); } finally { setLoading(false); }
             };
 
+            const handleStartEdit = (type, record) => {
+                setShowAddModal(type);
+                setEditTarget({ id: record.id });
+                setFormData({
+                    firstName: record.firstName || "",
+                    lastName: record.lastName || "",
+                    phone: (record.phone || "").replace(/\D/g, "").slice(0, 10),
+                    email: record.email || "",
+                    name: record.name || "",
+                    type: record.type || "Fast Food",
+                    streetAddress: record.streetAddress || record.address || "",
+                    city: record.city || "",
+                    stateCode: (record.stateCode || "").toUpperCase().slice(0, 2),
+                    zipCode: record.zipCode || "",
+                    storeNumber: record.storeNumber || "",
+                    coachId: record.coachId || "",
+                    profilePic: record.profilePic || ""
+                });
+            };
+
+            const closeModal = () => {
+                setShowAddModal(null);
+                setEditTarget(null);
+                setFormData({});
+                setSelectedFile(null);
+            };
+
+            const reorderList = (items, draggedId, targetId) => {
+                const copy = [...items];
+                const from = copy.findIndex(item => item.id === draggedId);
+                const to = copy.findIndex(item => item.id === targetId);
+                if (from < 0 || to < 0 || from === to) return copy;
+                const [moved] = copy.splice(from, 1);
+                copy.splice(to, 0, moved);
+                return copy.map((item, idx) => ({ ...item, order: idx }));
+            };
+
+            const handleDropOnItem = (type, targetId) => {
+                if (!dragItem || dragItem.type !== type || !isEditing) return;
+                if (type === 'director') setDirectors(prev => reorderList(prev, dragItem.id, targetId));
+                if (type === 'coach') setCoaches(prev => reorderList(prev, dragItem.id, targetId));
+                setDragItem(null);
+            };
+
+            const assignStoreToCoach = (storeId, coachId) => {
+                if (!isEditing) return;
+                setStores(prev => prev.map(s => s.id === storeId ? { ...s, coachId } : s));
+                setDragItem(null);
+            };
+
+            const assignCoachToDirector = (coachId, directorId) => {
+                if (!isEditing) return;
+                setCoaches(prev => prev.map(c => c.id === coachId ? { ...c, directorId } : c));
+                setDragItem(null);
+            };
+
             const saveChanges = async () => {
                 setLoading(true);
-                const batch = writeBatch(db);
+                const batch = db.batch();
+                directors.forEach((d, index) => {
+                    const orig = originalDirectors.find(od => od.id === d.id);
+                    if ((orig?.order ?? null) !== index) batch.update(db.collection("directors").doc(d.id), { order: index });
+                });
                 coaches.forEach(c => {
                     const orig = originalCoaches.find(oc => oc.id === c.id);
-                    if (orig?.directorId !== c.directorId) batch.update(doc(db, "coaches", c.id), { directorId: c.directorId || null });
+                    const patch = {};
+                    if (orig?.directorId !== c.directorId) patch.directorId = c.directorId || null;
+                    if ((orig?.order ?? null) !== (c.order ?? null)) patch.order = c.order ?? null;
+                    if (Object.keys(patch).length) batch.update(db.collection("coaches").doc(c.id), patch);
                 });
                 stores.forEach(s => {
                     const orig = originalStores.find(os => os.id === s.id);
-                    if (orig?.coachId !== s.coachId) batch.update(doc(db, "stores", s.id), { coachId: s.coachId || null });
+                    if (orig?.coachId !== s.coachId) batch.update(db.collection("stores").doc(s.id), { coachId: s.coachId || null });
                 });
                 await batch.commit();
                 setIsEditing(false); setShowDiff(false); setLoading(false);
@@ -132,10 +220,10 @@
                                 onChange={(e) => setSearch(e.target.value.toLowerCase())}
                             />
                             <button 
-                                onClick={() => isEditing ? setShowDiff(true) : setIsEditing(true)}
+                                onClick={() => isEditing ? saveChanges() : setIsEditing(true)}
                                 className={`px-6 py-2 rounded-xl font-bold text-sm transition-all ${isEditing ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-200'}`}
                             >
-                                {isEditing ? 'Review & Save' : 'Enter Edit Mode'}
+                                {isEditing ? 'Save Changes' : 'Enter Edit Mode'}
                             </button>
                         </div>
                     </header>
@@ -145,44 +233,56 @@
                         <section className="space-y-4 bg-indigo-50/30 p-6 rounded-3xl border border-indigo-100/50">
                             <h2 className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-4">Division Directors</h2>
                             {directors.map(d => (
-                                <div key={d.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+                                <div key={d.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 cursor-pointer" draggable={isEditing} onDragStart={() => setDragItem({ type: 'director', id: d.id })} onDragOver={(e) => e.preventDefault()} onDrop={() => dragItem?.type === 'coach' ? assignCoachToDirector(dragItem.id, d.id) : handleDropOnItem('director', d.id)} onClick={() => setDetailModal({ type: 'director', id: d.id })}>
                                     <div className="flex items-center gap-3">
                                         <img src={d.profilePic || 'https://via.placeholder.com/150'} className="w-12 h-12 rounded-full object-cover" />
                                         <div>
                                             <p className="font-bold text-gray-900">{d.firstName} {d.lastName}</p>
-                                            <p className="text-[10px] text-gray-400 uppercase font-black">{d.phone || 'No Phone'}</p>
+                                            <p className="text-[10px] text-gray-400 uppercase font-black">{d.phone ? formatPhone(d.phone) : 'No Phone'}</p>
+                                            <p className="text-[10px] text-gray-500">{d.email || 'No Email'}</p>
                                         </div>
                                     </div>
+                                    <button onClick={(e) => { e.stopPropagation(); handleStartEdit('director', d); }} className="mt-3 text-[10px] font-bold uppercase text-indigo-500 hover:text-indigo-700">Edit</button>
                                 </div>
                             ))}
-                            {isEditing && <button onClick={() => setShowAddModal('director')} className="w-full py-3 border-2 border-dashed border-indigo-200 rounded-2xl text-indigo-400 font-bold text-xs uppercase hover:bg-white">+</button>}
+                            {isEditing && <button onClick={() => { setEditTarget(null); setFormData({}); setSelectedFile(null); setShowAddModal('director'); }} className="w-full py-3 border-2 border-dashed border-indigo-200 rounded-2xl text-indigo-400 font-bold text-xs uppercase hover:bg-white">+</button>}
                         </section>
 
                         {/* Coaches */}
                         <section className="space-y-4 bg-purple-50/30 p-6 rounded-3xl border border-purple-100/50">
                             <h2 className="text-[10px] font-black uppercase tracking-widest text-purple-400 mb-4">Area Coaches</h2>
                             {coaches.map(c => (
-                                <div key={c.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 bento-card">
+                                <div key={c.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 bento-card cursor-pointer" draggable={isEditing} onDragStart={() => setDragItem({ type: 'coach', id: c.id })} onDragOver={(e) => e.preventDefault()} onDrop={() => dragItem?.type === 'store' ? assignStoreToCoach(dragItem.id, c.id) : handleDropOnItem('coach', c.id)} onClick={() => setDetailModal({ type: 'coach', id: c.id })}>
                                     <div className="flex items-center gap-3">
                                         <img src={c.profilePic || 'https://via.placeholder.com/150'} className="w-10 h-10 rounded-full object-cover" />
                                         <div>
                                             <p className="text-sm font-bold text-gray-900">{c.firstName} {c.lastName}</p>
-                                            <p className="text-[9px] text-gray-400 font-bold">{c.phone}</p>
+                                            <p className="text-[9px] text-gray-400 font-bold">{c.phone ? formatPhone(c.phone) : 'No Phone'}</p>
+                                            <p className="text-[10px] text-gray-500">{c.email || 'No Email'}</p>
+                                            <p className="text-[10px] text-purple-500 font-bold mt-1">Stores: {stores.filter(s => s.coachId === c.id).length}</p>
                                         </div>
                                     </div>
+                                    <button onClick={(e) => { e.stopPropagation(); handleStartEdit('coach', c); }} className="mt-3 text-[10px] font-bold uppercase text-purple-500 hover:text-purple-700">Edit</button>
                                 </div>
                             ))}
+                            {isEditing && <button onClick={() => { setEditTarget(null); setFormData({}); setSelectedFile(null); setShowAddModal('coach'); }} className="w-full py-3 border-2 border-dashed border-purple-200 rounded-2xl text-purple-400 font-bold text-xs uppercase hover:bg-white">+</button>}
                         </section>
 
                         {/* Stores */}
                         <section className="space-y-4 bg-emerald-50/30 p-6 rounded-3xl border border-emerald-100/50">
                             <h2 className="text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-4">Managed Stores</h2>
                             {stores.map(s => (
-                                <div key={s.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 bento-card">
+                                <div key={s.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 bento-card" draggable={isEditing} onDragStart={() => setDragItem({ type: 'store', id: s.id })}>
                                     <p className="text-sm font-bold text-gray-900">{s.name}</p>
-                                    <p className="text-[10px] text-emerald-600 font-bold italic opacity-70 mt-1">{s.address}</p>
+                                    <p className="text-[10px] text-emerald-500 font-bold mt-1">Type: {s.type || "N/A"}</p>
+                                    <p className="text-[10px] text-emerald-700 font-bold mt-1">Store #: {s.storeNumber || 'N/A'}</p>
+                                    <p className="text-[10px] text-emerald-600 font-bold italic opacity-70 mt-1">{s.streetAddress || s.address}, {s.city}, {(s.stateCode || "").toUpperCase()} {s.zipCode}</p>
+                                    <p className="text-[10px] text-gray-500 mt-1">Phone: {s.phone ? formatPhone(s.phone) : "No Phone"}</p>
+                                    <p className="text-[10px] text-gray-500 mt-1">Coach: {coaches.find(c => c.id === s.coachId)?.firstName || 'Unassigned'}</p>
+                                    <button onClick={() => handleStartEdit('store', s)} className="mt-3 text-[10px] font-bold uppercase text-emerald-500 hover:text-emerald-700">Edit</button>
                                 </div>
                             ))}
+                            {isEditing && <button onClick={() => { setEditTarget(null); setFormData({}); setSelectedFile(null); setShowAddModal('store'); }} className="w-full py-3 border-2 border-dashed border-emerald-200 rounded-2xl text-emerald-400 font-bold text-xs uppercase hover:bg-white">+</button>}
                         </section>
                     </main>
 
@@ -190,15 +290,78 @@
                     {showAddModal && (
                         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
                             <div className="bg-white p-8 rounded-3xl w-full max-w-md">
-                                <h3 className="text-xl font-bold mb-4 uppercase">New {showAddModal}</h3>
+                                <h3 className="text-xl font-bold mb-4 uppercase">{editTarget ? `Edit ${showAddModal}` : `New ${showAddModal}`}</h3>
                                 <form onSubmit={handleAdd} className="space-y-4">
-                                    <input placeholder="First Name" required className="w-full p-3 bg-gray-100 rounded-xl" onChange={e => setFormData({...formData, firstName: e.target.value})} />
-                                    <input placeholder="Last Name" required className="w-full p-3 bg-gray-100 rounded-xl" onChange={e => setFormData({...formData, lastName: e.target.value})} />
-                                    <input placeholder="Phone" className="w-full p-3 bg-gray-100 rounded-xl" onChange={e => setFormData({...formData, phone: e.target.value})} />
-                                    <input type="file" className="text-xs" onChange={e => setSelectedFile(e.target.files[0])} />
-                                    <button className="w-full py-4 bg-indigo-600 text-white font-bold rounded-xl shadow-lg">Create</button>
-                                    <button type="button" onClick={() => setShowAddModal(null)} className="w-full text-gray-400 font-bold uppercase text-[10px]">Cancel</button>
+                                    {showAddModal !== 'store' && (
+                                        <>
+                                            <input placeholder="First Name" required className="w-full p-3 bg-gray-100 rounded-xl" value={formData.firstName || ""} onChange={e => setFormData({...formData, firstName: e.target.value})} />
+                                            <input placeholder="Last Name" required className="w-full p-3 bg-gray-100 rounded-xl" value={formData.lastName || ""} onChange={e => setFormData({...formData, lastName: e.target.value})} />
+                                            <input placeholder="Phone" className="w-full p-3 bg-gray-100 rounded-xl" value={formatPhone(formData.phone || "")} onChange={e => setFormData({...formData, phone: e.target.value.replace(/\D/g, "").slice(0, 10)})} />
+                                        </>
+                                    )}
+                                    {(showAddModal === 'director' || showAddModal === 'coach') && (
+                                        <input type="email" placeholder="Email Address" className="w-full p-3 bg-gray-100 rounded-xl" value={formData.email || ""} onChange={e => setFormData({...formData, email: e.target.value})} />
+                                    )}
+                                    {showAddModal === 'store' && (
+                                        <>
+                                            <select className="w-full p-3 bg-gray-100 rounded-xl" value={formData.type || "Fast Food"} onChange={e => setFormData({...formData, type: e.target.value})}>
+                                                {STORE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                                            </select>
+                                            <select required className="w-full p-3 bg-gray-100 rounded-xl" value={formData.name || ""} onChange={e => setFormData({...formData, name: e.target.value})}>
+                                                <option value="">Select Store Name</option>
+                                                {STORE_NAMES.map(n => <option key={n} value={n}>{n}</option>)}
+                                            </select>
+                                            <input placeholder="Store Number" className="w-full p-3 bg-gray-100 rounded-xl" value={formData.storeNumber || ""} onChange={e => setFormData({...formData, storeNumber: e.target.value})} />
+                                            <input placeholder="Street Address" required className="w-full p-3 bg-gray-100 rounded-xl" value={formData.streetAddress || ""} onChange={e => setFormData({...formData, streetAddress: e.target.value})} />
+                                            <input placeholder="City" required className="w-full p-3 bg-gray-100 rounded-xl" value={formData.city || ""} onChange={e => setFormData({...formData, city: e.target.value})} />
+                                            <input placeholder="State (2-letter)" required className="w-full p-3 bg-gray-100 rounded-xl uppercase" value={(formData.stateCode || "").toUpperCase()} onChange={e => setFormData({...formData, stateCode: e.target.value.replace(/[^a-zA-Z]/g, "").toUpperCase().slice(0, 2)})} />
+                                            <input placeholder="Zip Code" required className="w-full p-3 bg-gray-100 rounded-xl" value={formData.zipCode || ""} onChange={e => setFormData({...formData, zipCode: e.target.value})} />
+                                            <input placeholder="Phone" className="w-full p-3 bg-gray-100 rounded-xl" value={formatPhone(formData.phone || "")} onChange={e => setFormData({...formData, phone: e.target.value.replace(/\D/g, "").slice(0, 10)})} />
+                                            <select className="w-full p-3 bg-gray-100 rounded-xl" value={formData.coachId || ""} onChange={e => setFormData({...formData, coachId: e.target.value})}>
+                                                <option value="">Unassigned Coach</option>
+                                                {coaches.map(c => <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>)}
+                                            </select>
+                                        </>
+                                    )}
+                                    {showAddModal !== 'store' && <input type="file" className="text-xs" onChange={e => setSelectedFile(e.target.files[0])} />}
+                                    <button className="w-full py-4 bg-indigo-600 text-white font-bold rounded-xl shadow-lg">{editTarget ? "Save Changes" : "Create"}</button>
+                                    <button type="button" onClick={closeModal} className="w-full text-gray-400 font-bold uppercase text-[10px]">Cancel</button>
                                 </form>
+                            </div>
+                        </div>
+                    )}
+
+                    {detailModal && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
+                            <div className="bg-white p-8 rounded-3xl w-full max-w-lg">
+                                {detailModal.type === 'director' && (
+                                    <>
+                                        <h3 className="text-xl font-bold mb-4 uppercase">Director Team</h3>
+                                        <div className="space-y-2">
+                                            {coaches.filter(c => c.directorId === detailModal.id).map(c => (
+                                                <div key={c.id} className="p-3 rounded-xl bg-indigo-50">
+                                                    <p className="font-bold text-sm">{c.firstName} {c.lastName}</p>
+                                                    <p className="text-xs text-gray-500">{c.email || "No Email"} • {c.phone ? formatPhone(c.phone) : "No Phone"}</p>
+                                                </div>
+                                            ))}
+                                            {!coaches.filter(c => c.directorId === detailModal.id).length && <p className="text-sm text-gray-400">No area coaches assigned.</p>}
+                                        </div>
+                                    </>
+                                )}
+                                {detailModal.type === 'coach' && (
+                                    <>
+                                        <h3 className="text-xl font-bold mb-4 uppercase">Coach Stores</h3>
+                                        <div className="space-y-2">
+                                            {stores.filter(s => s.coachId === detailModal.id).map(s => (
+                                                <div key={s.id} className="p-3 rounded-xl bg-purple-50">
+                                                    <p className="font-bold text-sm">{s.name} {s.storeNumber ? ` ${s.storeNumber}` : ""}</p>
+                                                </div>
+                                            ))}
+                                            {!stores.filter(s => s.coachId === detailModal.id).length && <p className="text-sm text-gray-400">No stores assigned.</p>}
+                                        </div>
+                                    </>
+                                )}
+                                <button type="button" onClick={() => setDetailModal(null)} className="w-full mt-6 text-gray-500 font-bold uppercase text-xs">Close</button>
                             </div>
                         </div>
                     )}
