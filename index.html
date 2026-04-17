@@ -17,17 +17,16 @@
     <div id="root"></div>
 
     <!-- Dependencies -->
-    <script crossOrigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossOrigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
     
     <!-- Firebase SDK -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getFirestore, collection, onSnapshot, doc, setDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
-
+    <script type="text/babel">
         // Constants & Keys
         const firebaseConfig = {
             apiKey: "AIzaSyDIGLmJ5r_fBhB5xOL8oadQ7csN3wGh2dI",
@@ -40,12 +39,11 @@
         const IMGBB_API_KEY = "b733862d15744e2bfaa4329d122f4ba0";
 
         // Initialize Firebase
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
+        const app = firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore(app);
 
         // --- React Logic Starts Here ---
         const { useState, useEffect, useMemo } = React;
-        const { motion, AnimatePresence } = window.Motion;
 
         function App() {
             const [loading, setLoading] = useState(true);
@@ -63,13 +61,13 @@
 
             // Load Data
             useEffect(() => {
-                const unsubD = onSnapshot(collection(db, "directors"), (s) => setDirectors(s.docs.map(d => ({id: d.id, ...d.data()}))));
-                const unsubC = onSnapshot(collection(db, "coaches"), (s) => {
+                const unsubD = db.collection("directors").onSnapshot((s) => setDirectors(s.docs.map(d => ({id: d.id, ...d.data()}))));
+                const unsubC = db.collection("coaches").onSnapshot((s) => {
                     const data = s.docs.map(d => ({id: d.id, ...d.data()}));
                     setCoaches(data);
                     setOriginalCoaches(data);
                 });
-                const unsubS = onSnapshot(collection(db, "stores"), (s) => {
+                const unsubS = db.collection("stores").onSnapshot((s) => {
                     const data = s.docs.map(d => ({id: d.id, ...d.data()}));
                     setStores(data);
                     setOriginalStores(data);
@@ -97,21 +95,21 @@
                     }
                     const id = Math.random().toString(36).substr(2, 9);
                     const coll = showAddModal === 'director' ? 'directors' : showAddModal === 'coach' ? 'coaches' : 'stores';
-                    await setDoc(doc(db, coll, id), finalData);
+                    await db.collection(coll).doc(id).set(finalData);
                     setShowAddModal(null); setFormData({}); setSelectedFile(null);
                 } catch (err) { console.error(err); } finally { setLoading(false); }
             };
 
             const saveChanges = async () => {
                 setLoading(true);
-                const batch = writeBatch(db);
+                const batch = db.batch();
                 coaches.forEach(c => {
                     const orig = originalCoaches.find(oc => oc.id === c.id);
-                    if (orig?.directorId !== c.directorId) batch.update(doc(db, "coaches", c.id), { directorId: c.directorId || null });
+                    if (orig?.directorId !== c.directorId) batch.update(db.collection("coaches").doc(c.id), { directorId: c.directorId || null });
                 });
                 stores.forEach(s => {
                     const orig = originalStores.find(os => os.id === s.id);
-                    if (orig?.coachId !== s.coachId) batch.update(doc(db, "stores", s.id), { coachId: s.coachId || null });
+                    if (orig?.coachId !== s.coachId) batch.update(db.collection("stores").doc(s.id), { coachId: s.coachId || null });
                 });
                 await batch.commit();
                 setIsEditing(false); setShowDiff(false); setLoading(false);
