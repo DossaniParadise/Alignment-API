@@ -63,17 +63,27 @@
             const [dragItem, setDragItem] = useState(null);
 
             const sortByOrder = (items) => [...items].sort((a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER));
+            const formatPhone = (raw = "") => {
+                const digits = raw.replace(/\D/g, "").slice(0, 10);
+                if (digits.length <= 3) return digits;
+                if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+                return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+            };
 
             // Load Data
             useEffect(() => {
-                const unsubD = db.collection("directors").onSnapshot((s) => setDirectors(s.docs.map(d => ({id: d.id, ...d.data()}))));
+                const unsubD = db.collection("directors").onSnapshot((s) => {
+                    const data = sortByOrder(s.docs.map(d => ({id: d.id, ...d.data()})));
+                    setDirectors(data);
+                    setOriginalDirectors(data);
+                });
                 const unsubC = db.collection("coaches").onSnapshot((s) => {
-                    const data = s.docs.map(d => ({id: d.id, ...d.data()}));
+                    const data = sortByOrder(s.docs.map(d => ({id: d.id, ...d.data()})));
                     setCoaches(data);
                     setOriginalCoaches(data);
                 });
                 const unsubS = db.collection("stores").onSnapshot((s) => {
-                    const data = s.docs.map(d => ({id: d.id, ...d.data()}));
+                    const data = sortByOrder(s.docs.map(d => ({id: d.id, ...d.data()})));
                     setStores(data);
                     setOriginalStores(data);
                     setLoading(false);
@@ -98,8 +108,18 @@
                         const url = await uploadImage(selectedFile);
                         if (url) finalData.profilePic = url;
                     }
+
                     const coll = showAddModal === 'director' ? 'directors' : showAddModal === 'coach' ? 'coaches' : 'stores';
-                    await db.collection(coll).doc(id).set(finalData);
+                    if (editTarget?.id) {
+                        await db.collection(coll).doc(editTarget.id).set(finalData, { merge: true });
+                    } else {
+                        const newId = Math.random().toString(36).substr(2, 9);
+                        if (showAddModal === 'director') finalData.order = directors.length;
+                        if (showAddModal === 'coach') finalData.order = coaches.length;
+                        if (showAddModal === 'store') finalData.order = stores.length;
+                        await db.collection(coll).doc(newId).set(finalData);
+                    }
+                    setEditTarget(null);
                     setShowAddModal(null); setFormData({}); setSelectedFile(null);
                 } catch (err) { console.error(err); } finally { setLoading(false); }
             };
@@ -110,10 +130,11 @@
                 setFormData({
                     firstName: record.firstName || "",
                     lastName: record.lastName || "",
-                    phone: record.phone || "",
+                    phone: (record.phone || "").replace(/\D/g, "").slice(0, 10),
                     email: record.email || "",
                     name: record.name || "",
                     address: record.address || "",
+                    storeNumber: record.storeNumber || "",
                     profilePic: record.profilePic || ""
                 });
             };
@@ -125,12 +146,42 @@
                 setSelectedFile(null);
             };
 
+            const reorderList = (items, draggedId, targetId) => {
+                const copy = [...items];
+                const from = copy.findIndex(item => item.id === draggedId);
+                const to = copy.findIndex(item => item.id === targetId);
+                if (from < 0 || to < 0 || from === to) return copy;
+                const [moved] = copy.splice(from, 1);
+                copy.splice(to, 0, moved);
+                return copy.map((item, idx) => ({ ...item, order: idx }));
+            };
+
+            const handleDropOnItem = (type, targetId) => {
+                if (!dragItem || dragItem.type !== type || !isEditing) return;
+                if (type === 'director') setDirectors(prev => reorderList(prev, dragItem.id, targetId));
+                if (type === 'coach') setCoaches(prev => reorderList(prev, dragItem.id, targetId));
+                setDragItem(null);
+            };
+
+            const assignStoreToCoach = (storeId, coachId) => {
+                if (!isEditing) return;
+                setStores(prev => prev.map(s => s.id === storeId ? { ...s, coachId } : s));
+                setDragItem(null);
+            };
+
             const saveChanges = async () => {
                 setLoading(true);
                 const batch = db.batch();
+                directors.forEach((d, index) => {
+                    const orig = originalDirectors.find(od => od.id === d.id);
+                    if ((orig?.order ?? null) !== index) batch.update(db.collection("directors").doc(d.id), { order: index });
+                });
                 coaches.forEach(c => {
                     const orig = originalCoaches.find(oc => oc.id === c.id);
-                    if (orig?.directorId !== c.directorId) batch.update(db.collection("coaches").doc(c.id), { directorId: c.directorId || null });
+                    const patch = {};
+                    if (orig?.directorId !== c.directorId) patch.directorId = c.directorId || null;
+                    if ((orig?.order ?? null) !== (c.order ?? null)) patch.order = c.order ?? null;
+                    if (Object.keys(patch).length) batch.update(db.collection("coaches").doc(c.id), patch);
                 });
                 stores.forEach(s => {
                     const orig = originalStores.find(os => os.id === s.id);
@@ -173,7 +224,7 @@
                                         <img src={d.profilePic || 'https://via.placeholder.com/150'} className="w-12 h-12 rounded-full object-cover" />
                                         <div>
                                             <p className="font-bold text-gray-900">{d.firstName} {d.lastName}</p>
-                                            <p className="text-[10px] text-gray-400 uppercase font-black">{d.phone || 'No Phone'}</p>
+                                            <p className="text-[10px] text-gray-400 uppercase font-black">{d.phone ? formatPhone(d.phone) : 'No Phone'}</p>
                                             <p className="text-[10px] text-gray-500">{d.email || 'No Email'}</p>
                                         </div>
                                     </div>
@@ -187,13 +238,14 @@
                         <section className="space-y-4 bg-purple-50/30 p-6 rounded-3xl border border-purple-100/50">
                             <h2 className="text-[10px] font-black uppercase tracking-widest text-purple-400 mb-4">Area Coaches</h2>
                             {coaches.map(c => (
-                                <div key={c.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 bento-card" draggable={isEditing} onDragStart={() => setDragItem({ type: 'coach', id: c.id })} onDragOver={(e) => e.preventDefault()} onDrop={() => handleDropOnItem('coach', c.id)}>
+                                <div key={c.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 bento-card" draggable={isEditing} onDragStart={() => setDragItem({ type: 'coach', id: c.id })} onDragOver={(e) => e.preventDefault()} onDrop={() => dragItem?.type === 'store' ? assignStoreToCoach(dragItem.id, c.id) : handleDropOnItem('coach', c.id)}>
                                     <div className="flex items-center gap-3">
                                         <img src={c.profilePic || 'https://via.placeholder.com/150'} className="w-10 h-10 rounded-full object-cover" />
                                         <div>
                                             <p className="text-sm font-bold text-gray-900">{c.firstName} {c.lastName}</p>
-                                            <p className="text-[9px] text-gray-400 font-bold">{c.phone}</p>
+                                            <p className="text-[9px] text-gray-400 font-bold">{c.phone ? formatPhone(c.phone) : 'No Phone'}</p>
                                             <p className="text-[10px] text-gray-500">{c.email || 'No Email'}</p>
+                                            <p className="text-[10px] text-purple-500 font-bold mt-1">Stores: {stores.filter(s => s.coachId === c.id).length}</p>
                                         </div>
                                     </div>
                                     <button onClick={() => handleStartEdit('coach', c)} className="mt-3 text-[10px] font-bold uppercase text-purple-500 hover:text-purple-700">Edit</button>
@@ -206,9 +258,11 @@
                         <section className="space-y-4 bg-emerald-50/30 p-6 rounded-3xl border border-emerald-100/50">
                             <h2 className="text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-4">Managed Stores</h2>
                             {stores.map(s => (
-                                <div key={s.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 bento-card">
+                                <div key={s.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 bento-card" draggable={isEditing} onDragStart={() => setDragItem({ type: 'store', id: s.id })}>
                                     <p className="text-sm font-bold text-gray-900">{s.name}</p>
+                                    <p className="text-[10px] text-emerald-700 font-bold mt-1">Store #: {s.storeNumber || 'N/A'}</p>
                                     <p className="text-[10px] text-emerald-600 font-bold italic opacity-70 mt-1">{s.address}</p>
+                                    <p className="text-[10px] text-gray-500 mt-1">Coach: {coaches.find(c => c.id === s.coachId)?.firstName || 'Unassigned'}</p>
                                     <button onClick={() => handleStartEdit('store', s)} className="mt-3 text-[10px] font-bold uppercase text-emerald-500 hover:text-emerald-700">Edit</button>
                                 </div>
                             ))}
@@ -222,13 +276,24 @@
                             <div className="bg-white p-8 rounded-3xl w-full max-w-md">
                                 <h3 className="text-xl font-bold mb-4 uppercase">{editTarget ? `Edit ${showAddModal}` : `New ${showAddModal}`}</h3>
                                 <form onSubmit={handleAdd} className="space-y-4">
-                                    <input placeholder="First Name" required className="w-full p-3 bg-gray-100 rounded-xl" value={formData.firstName || ""} onChange={e => setFormData({...formData, firstName: e.target.value})} />
-                                    <input placeholder="Last Name" required className="w-full p-3 bg-gray-100 rounded-xl" value={formData.lastName || ""} onChange={e => setFormData({...formData, lastName: e.target.value})} />
-                                    <input placeholder="Phone" className="w-full p-3 bg-gray-100 rounded-xl" value={formData.phone || ""} onChange={e => setFormData({...formData, phone: e.target.value})} />
+                                    {showAddModal !== 'store' && (
+                                        <>
+                                            <input placeholder="First Name" required className="w-full p-3 bg-gray-100 rounded-xl" value={formData.firstName || ""} onChange={e => setFormData({...formData, firstName: e.target.value})} />
+                                            <input placeholder="Last Name" required className="w-full p-3 bg-gray-100 rounded-xl" value={formData.lastName || ""} onChange={e => setFormData({...formData, lastName: e.target.value})} />
+                                            <input placeholder="Phone" className="w-full p-3 bg-gray-100 rounded-xl" value={formatPhone(formData.phone || "")} onChange={e => setFormData({...formData, phone: e.target.value.replace(/\D/g, "").slice(0, 10)})} />
+                                        </>
+                                    )}
                                     {(showAddModal === 'director' || showAddModal === 'coach') && (
                                         <input type="email" placeholder="Email Address" className="w-full p-3 bg-gray-100 rounded-xl" value={formData.email || ""} onChange={e => setFormData({...formData, email: e.target.value})} />
                                     )}
-                                    <input type="file" className="text-xs" onChange={e => setSelectedFile(e.target.files[0])} />
+                                    {showAddModal === 'store' && (
+                                        <>
+                                            <input placeholder="Store Name" required className="w-full p-3 bg-gray-100 rounded-xl" value={formData.name || ""} onChange={e => setFormData({...formData, name: e.target.value})} />
+                                            <input placeholder="Store Number" className="w-full p-3 bg-gray-100 rounded-xl" value={formData.storeNumber || ""} onChange={e => setFormData({...formData, storeNumber: e.target.value})} />
+                                            <input placeholder="Store Address" required className="w-full p-3 bg-gray-100 rounded-xl" value={formData.address || ""} onChange={e => setFormData({...formData, address: e.target.value})} />
+                                        </>
+                                    )}
+                                    {showAddModal !== 'store' && <input type="file" className="text-xs" onChange={e => setSelectedFile(e.target.files[0])} />}
                                     <button className="w-full py-4 bg-indigo-600 text-white font-bold rounded-xl shadow-lg">{editTarget ? "Save Changes" : "Create"}</button>
                                     <button type="button" onClick={closeModal} className="w-full text-gray-400 font-bold uppercase text-[10px]">Cancel</button>
                                 </form>
