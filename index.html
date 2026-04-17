@@ -228,7 +228,7 @@
 
                     <main className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         {/* Directors */}
-                        <section className="space-y-4 bg-indigo-50/30 p-6 rounded-3xl border border-indigo-100/50">
+                        <section className="space-y-4 bg-indigo-50/30 p-6 rounded-3xl border border-indigo-100/50 max-h-[70vh] overflow-y-auto">
                             <h2 className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-4">Division Directors</h2>
                             {directors.map(d => (
                                 <div key={d.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 cursor-pointer" draggable={isEditing} onDragStart={() => setDragItem({ type: 'director', id: d.id })} onDragOver={(e) => e.preventDefault()} onDrop={() => dragItem?.type === 'coach' ? assignCoachToDirector(dragItem.id, d.id) : handleDropOnItem('director', d.id)} onClick={() => setDetailModal({ type: 'director', id: d.id })}>
@@ -247,7 +247,7 @@
                         </section>
 
                         {/* Coaches */}
-                        <section className="space-y-4 bg-purple-50/30 p-6 rounded-3xl border border-purple-100/50">
+                        <section className="space-y-4 bg-purple-50/30 p-6 rounded-3xl border border-purple-100/50 max-h-[70vh] overflow-y-auto">
                             <h2 className="text-[10px] font-black uppercase tracking-widest text-purple-400 mb-4">Area Coaches</h2>
                             {coaches.map(c => (
                                 <div key={c.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 bento-card cursor-pointer" draggable={isEditing} onDragStart={() => setDragItem({ type: 'coach', id: c.id })} onDragOver={(e) => e.preventDefault()} onDrop={() => dragItem?.type === 'store' ? assignStoreToCoach(dragItem.id, c.id) : handleDropOnItem('coach', c.id)} onClick={() => setDetailModal({ type: 'coach', id: c.id })}>
@@ -267,8 +267,11 @@
                         </section>
 
                         {/* Stores */}
-                        <section className="space-y-4 bg-emerald-50/30 p-6 rounded-3xl border border-emerald-100/50">
-                            <h2 className="text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-4">Managed Stores</h2>
+                        <section className="space-y-4 bg-emerald-50/30 p-6 rounded-3xl border border-emerald-100/50 max-h-[70vh] overflow-y-auto">
+                            <div className="flex justify-between items-center mb-4">
+                                <h2 className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Managed Stores</h2>
+                                {isEditing && <button onClick={() => setShowImportModal(true)} className="px-3 py-2 rounded-lg border border-emerald-200 text-[10px] font-bold uppercase text-emerald-600 hover:bg-white">Mass Import</button>}
+                            </div>
                             {stores.map(s => (
                                 <div key={s.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 bento-card" draggable={isEditing} onDragStart={() => setDragItem({ type: 'store', id: s.id })}>
                                     <p className="text-sm font-bold text-gray-900">{s.name}</p>
