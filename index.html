@@ -1,1 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DPM Area Coach Alignment</title>
+    <!-- Tailwind CSS 4 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #F8F9FB; }
+        .bento-card { transition: all 0.2s ease; }
+        .bento-card:hover { border-color: #4F46E5; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
 
+    <!-- Dependencies -->
+    <script crossOrigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossOrigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
+    
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, doc, setDoc, writeBatch } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+
+        // Constants & Keys
+        const firebaseConfig = {
+            apiKey: "AIzaSyDIGLmJ5r_fBhB5xOL8oadQ7csN3wGh2dI",
+            authDomain: "dpm-alignment.firebaseapp.com",
+            projectId: "dpm-alignment",
+            storageBucket: "dpm-alignment.firebasestorage.app",
+            messagingSenderId: "298588092433",
+            appId: "1:298588092433:web:694a9412658adac039d9b0"
+        };
+        const IMGBB_API_KEY = "b733862d15744e2bfaa4329d122f4ba0";
+
+        // Initialize Firebase
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // --- React Logic Starts Here ---
+        const { useState, useEffect, useMemo } = React;
+        const { motion, AnimatePresence } = window.Motion;
+
+        function App() {
+            const [loading, setLoading] = useState(true);
+            const [isEditing, setIsEditing] = useState(false);
+            const [search, setSearch] = useState("");
+            const [directors, setDirectors] = useState([]);
+            const [coaches, setCoaches] = useState([]);
+            const [stores, setStores] = useState([]);
+            const [originalCoaches, setOriginalCoaches] = useState([]);
+            const [originalStores, setOriginalStores] = useState([]);
+            const [showDiff, setShowDiff] = useState(false);
+            const [showAddModal, setShowAddModal] = useState(null);
+            const [formData, setFormData] = useState({});
+            const [selectedFile, setSelectedFile] = useState(null);
+
+            // Load Data
+            useEffect(() => {
+                const unsubD = onSnapshot(collection(db, "directors"), (s) => setDirectors(s.docs.map(d => ({id: d.id, ...d.data()}))));
+                const unsubC = onSnapshot(collection(db, "coaches"), (s) => {
+                    const data = s.docs.map(d => ({id: d.id, ...d.data()}));
+                    setCoaches(data);
+                    setOriginalCoaches(data);
+                });
+                const unsubS = onSnapshot(collection(db, "stores"), (s) => {
+                    const data = s.docs.map(d => ({id: d.id, ...d.data()}));
+                    setStores(data);
+                    setOriginalStores(data);
+                    setLoading(false);
+                });
+                return () => { unsubD(); unsubC(); unsubS(); };
+            }, []);
+
+            const uploadImage = async (file) => {
+                const body = new FormData();
+                body.append("image", file);
+                const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, { method: "POST", body });
+                const json = await res.json();
+                return json.success ? json.data.url : null;
+            };
+
+            const handleAdd = async (e) => {
+                e.preventDefault();
+                setLoading(true);
+                try {
+                    let finalData = { ...formData };
+                    if (selectedFile) {
+                        const url = await uploadImage(selectedFile);
+                        if (url) finalData.profilePic = url;
+                    }
+                    const id = Math.random().toString(36).substr(2, 9);
+                    const coll = showAddModal === 'director' ? 'directors' : showAddModal === 'coach' ? 'coaches' : 'stores';
+                    await setDoc(doc(db, coll, id), finalData);
+                    setShowAddModal(null); setFormData({}); setSelectedFile(null);
+                } catch (err) { console.error(err); } finally { setLoading(false); }
+            };
+
+            const saveChanges = async () => {
+                setLoading(true);
+                const batch = writeBatch(db);
+                coaches.forEach(c => {
+                    const orig = originalCoaches.find(oc => oc.id === c.id);
+                    if (orig?.directorId !== c.directorId) batch.update(doc(db, "coaches", c.id), { directorId: c.directorId || null });
+                });
+                stores.forEach(s => {
+                    const orig = originalStores.find(os => os.id === s.id);
+                    if (orig?.coachId !== s.coachId) batch.update(doc(db, "stores", s.id), { coachId: s.coachId || null });
+                });
+                await batch.commit();
+                setIsEditing(false); setShowDiff(false); setLoading(false);
+            };
+
+            // Simplified UI for Single File Demo
+            return (
+                <div className="min-h-screen p-8">
+                    <header className="flex justify-between items-center mb-8 bg-white p-6 rounded-2xl border border-gray-200">
+                        <div>
+                            <h1 className="text-2xl font-black text-gray-900 uppercase tracking-tight">DPM Area Coach Alignment</h1>
+                            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">{isEditing ? 'Editing Mode' : 'View Mode'}</p>
+                        </div>
+                        <div className="flex gap-4">
+                            <input 
+                                placeholder="Search..." 
+                                className="px-4 py-2 bg-gray-100 rounded-xl border-none text-sm"
+                                onChange={(e) => setSearch(e.target.value.toLowerCase())}
+                            />
+                            <button 
+                                onClick={() => isEditing ? setShowDiff(true) : setIsEditing(true)}
+                                className={`px-6 py-2 rounded-xl font-bold text-sm transition-all ${isEditing ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-200'}`}
+                            >
+                                {isEditing ? 'Review & Save' : 'Enter Edit Mode'}
+                            </button>
+                        </div>
+                    </header>
+
+                    <main className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        {/* Directors */}
+                        <section className="space-y-4 bg-indigo-50/30 p-6 rounded-3xl border border-indigo-100/50">
+                            <h2 className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-4">Division Directors</h2>
+                            {directors.map(d => (
+                                <div key={d.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+                                    <div className="flex items-center gap-3">
+                                        <img src={d.profilePic || 'https://via.placeholder.com/150'} className="w-12 h-12 rounded-full object-cover" />
+                                        <div>
+                                            <p className="font-bold text-gray-900">{d.firstName} {d.lastName}</p>
+                                            <p className="text-[10px] text-gray-400 uppercase font-black">{d.phone || 'No Phone'}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                            {isEditing && <button onClick={() => setShowAddModal('director')} className="w-full py-3 border-2 border-dashed border-indigo-200 rounded-2xl text-indigo-400 font-bold text-xs uppercase hover:bg-white">+</button>}
+                        </section>
+
+                        {/* Coaches */}
+                        <section className="space-y-4 bg-purple-50/30 p-6 rounded-3xl border border-purple-100/50">
+                            <h2 className="text-[10px] font-black uppercase tracking-widest text-purple-400 mb-4">Area Coaches</h2>
+                            {coaches.map(c => (
+                                <div key={c.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 bento-card">
+                                    <div className="flex items-center gap-3">
+                                        <img src={c.profilePic || 'https://via.placeholder.com/150'} className="w-10 h-10 rounded-full object-cover" />
+                                        <div>
+                                            <p className="text-sm font-bold text-gray-900">{c.firstName} {c.lastName}</p>
+                                            <p className="text-[9px] text-gray-400 font-bold">{c.phone}</p>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </section>
+
+                        {/* Stores */}
+                        <section className="space-y-4 bg-emerald-50/30 p-6 rounded-3xl border border-emerald-100/50">
+                            <h2 className="text-[10px] font-black uppercase tracking-widest text-emerald-400 mb-4">Managed Stores</h2>
+                            {stores.map(s => (
+                                <div key={s.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 bento-card">
+                                    <p className="text-sm font-bold text-gray-900">{s.name}</p>
+                                    <p className="text-[10px] text-emerald-600 font-bold italic opacity-70 mt-1">{s.address}</p>
+                                </div>
+                            ))}
+                        </section>
+                    </main>
+
+                    {/* Simple Add Modal */}
+                    {showAddModal && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
+                            <div className="bg-white p-8 rounded-3xl w-full max-w-md">
+                                <h3 className="text-xl font-bold mb-4 uppercase">New {showAddModal}</h3>
+                                <form onSubmit={handleAdd} className="space-y-4">
+                                    <input placeholder="First Name" required className="w-full p-3 bg-gray-100 rounded-xl" onChange={e => setFormData({...formData, firstName: e.target.value})} />
+                                    <input placeholder="Last Name" required className="w-full p-3 bg-gray-100 rounded-xl" onChange={e => setFormData({...formData, lastName: e.target.value})} />
+                                    <input placeholder="Phone" className="w-full p-3 bg-gray-100 rounded-xl" onChange={e => setFormData({...formData, phone: e.target.value})} />
+                                    <input type="file" className="text-xs" onChange={e => setSelectedFile(e.target.files[0])} />
+                                    <button className="w-full py-4 bg-indigo-600 text-white font-bold rounded-xl shadow-lg">Create</button>
+                                    <button type="button" onClick={() => setShowAddModal(null)} className="w-full text-gray-400 font-bold uppercase text-[10px]">Cancel</button>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
