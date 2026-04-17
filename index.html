@@ -59,8 +59,6 @@
             const [showAddModal, setShowAddModal] = useState(null);
             const [editTarget, setEditTarget] = useState(null);
             const [detailModal, setDetailModal] = useState(null);
-            const [showImportModal, setShowImportModal] = useState(false);
-            const [importText, setImportText] = useState("");
             const [formData, setFormData] = useState({});
             const [selectedFile, setSelectedFile] = useState(null);
             const [dragItem, setDragItem] = useState(null);
@@ -141,10 +139,8 @@
                     type: record.type || "Fast Food",
                     streetAddress: record.streetAddress || record.address || "",
                     city: record.city || "",
-                    stateCode: (record.stateCode || "").toUpperCase().slice(0, 2),
                     zipCode: record.zipCode || "",
                     storeNumber: record.storeNumber || "",
-                    coachId: record.coachId || "",
                     profilePic: record.profilePic || ""
                 });
             };
@@ -183,76 +179,6 @@
                 if (!isEditing) return;
                 setCoaches(prev => prev.map(c => c.id === coachId ? { ...c, directorId } : c));
                 setDragItem(null);
-            };
-
-            const parseStoreImport = (text) => {
-                const rows = text.split("\n").map(r => r.trim()).filter(Boolean);
-                if (!rows.length) return [];
-
-                try {
-                    const parsedJson = JSON.parse(text);
-                    if (Array.isArray(parsedJson)) return parsedJson;
-                } catch (_) {}
-
-                const delim = rows[0].includes("\t") ? "\t" : rows[0].includes("|") ? "|" : ",";
-                const headerParts = rows[0].split(delim).map(h => h.trim().toLowerCase());
-                const hasHeader = headerParts.some(h => ["type", "name", "store", "store number", "number", "street", "city", "state", "zip", "phone", "coach"].includes(h));
-                const dataRows = hasHeader ? rows.slice(1) : rows;
-
-                return dataRows.map((line) => {
-                    const parts = line.split(delim).map(p => p.trim());
-                    const get = (possibleKeys, fallbackIndex) => {
-                        if (!hasHeader) return parts[fallbackIndex] || "";
-                        const idx = headerParts.findIndex(h => possibleKeys.includes(h));
-                        return idx >= 0 ? (parts[idx] || "") : "";
-                    };
-                    return {
-                        type: get(["type"], 0) || "Fast Food",
-                        name: get(["name", "store name", "store"], 1),
-                        storeNumber: get(["store number", "number", "store #"], 2),
-                        streetAddress: get(["street address", "street", "address"], 3),
-                        city: get(["city"], 4),
-                        stateCode: get(["state", "state code"], 5).replace(/[^a-zA-Z]/g, "").toUpperCase().slice(0, 2),
-                        zipCode: get(["zip", "zip code"], 6),
-                        phone: get(["phone", "phone number"], 7).replace(/\D/g, "").slice(0, 10),
-                        coachName: get(["coach", "area coach", "coach name"], 8)
-                    };
-                }).filter(item => item.name || item.storeNumber || item.streetAddress);
-            };
-
-            const handleMassImport = async () => {
-                const parsedStores = parseStoreImport(importText);
-                if (!parsedStores.length) {
-                    alert("No importable rows found. Use JSON array, CSV, TSV, or | separated rows.");
-                    return;
-                }
-                setLoading(true);
-                try {
-                    const batch = db.batch();
-                    parsedStores.forEach((store, idx) => {
-                        const coachMatch = coaches.find(c => `${c.firstName || ""} ${c.lastName || ""}`.trim().toLowerCase() === (store.coachName || "").toLowerCase());
-                        const newId = Math.random().toString(36).substr(2, 9);
-                        batch.set(db.collection("stores").doc(newId), {
-                            type: store.type || "Fast Food",
-                            name: store.name || "",
-                            storeNumber: store.storeNumber || "",
-                            streetAddress: store.streetAddress || "",
-                            city: store.city || "",
-                            stateCode: (store.stateCode || "").toUpperCase().slice(0, 2),
-                            zipCode: store.zipCode || "",
-                            phone: (store.phone || "").replace(/\D/g, "").slice(0, 10),
-                            coachId: coachMatch?.id || null,
-                            order: stores.length + idx
-                        }, { merge: true });
-                    });
-                    await batch.commit();
-                    setImportText("");
-                    setShowImportModal(false);
-                } catch (err) {
-                    console.error(err);
-                } finally {
-                    setLoading(false);
-                }
             };
 
             const saveChanges = async () => {
@@ -421,7 +347,7 @@
                                     <p className="text-sm font-bold text-gray-900">{s.name}</p>
                                     <p className="text-[10px] text-emerald-500 font-bold mt-1">Type: {s.type || "N/A"}</p>
                                     <p className="text-[10px] text-emerald-700 font-bold mt-1">Store #: {s.storeNumber || 'N/A'}</p>
-                                    <p className="text-[10px] text-emerald-600 font-bold italic opacity-70 mt-1">{s.streetAddress || s.address}, {s.city}, {(s.stateCode || "").toUpperCase()} {s.zipCode}</p>
+                                    <p className="text-[10px] text-emerald-600 font-bold italic opacity-70 mt-1">{s.streetAddress || s.address}, {s.city} {s.zipCode}</p>
                                     <p className="text-[10px] text-gray-500 mt-1">Phone: {s.phone ? formatPhone(s.phone) : "No Phone"}</p>
                                     <p className="text-[10px] text-gray-500 mt-1">Coach: {coaches.find(c => c.id === s.coachId)?.firstName || 'Unassigned'}</p>
                                     <button onClick={() => handleStartEdit('store', s)} className="mt-3 text-[10px] font-bold uppercase text-emerald-500 hover:text-emerald-700">Edit</button>
@@ -459,13 +385,8 @@
                                             <input placeholder="Store Number" className="w-full p-3 bg-gray-100 rounded-xl" value={formData.storeNumber || ""} onChange={e => setFormData({...formData, storeNumber: e.target.value})} />
                                             <input placeholder="Street Address" required className="w-full p-3 bg-gray-100 rounded-xl" value={formData.streetAddress || ""} onChange={e => setFormData({...formData, streetAddress: e.target.value})} />
                                             <input placeholder="City" required className="w-full p-3 bg-gray-100 rounded-xl" value={formData.city || ""} onChange={e => setFormData({...formData, city: e.target.value})} />
-                                            <input placeholder="State (2-letter)" required className="w-full p-3 bg-gray-100 rounded-xl uppercase" value={(formData.stateCode || "").toUpperCase()} onChange={e => setFormData({...formData, stateCode: e.target.value.replace(/[^a-zA-Z]/g, "").toUpperCase().slice(0, 2)})} />
                                             <input placeholder="Zip Code" required className="w-full p-3 bg-gray-100 rounded-xl" value={formData.zipCode || ""} onChange={e => setFormData({...formData, zipCode: e.target.value})} />
                                             <input placeholder="Phone" className="w-full p-3 bg-gray-100 rounded-xl" value={formatPhone(formData.phone || "")} onChange={e => setFormData({...formData, phone: e.target.value.replace(/\D/g, "").slice(0, 10)})} />
-                                            <select className="w-full p-3 bg-gray-100 rounded-xl" value={formData.coachId || ""} onChange={e => setFormData({...formData, coachId: e.target.value})}>
-                                                <option value="">Unassigned Coach</option>
-                                                {coaches.map(c => <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>)}
-                                            </select>
                                         </>
                                     )}
                                     {showAddModal !== 'store' && <input type="file" className="text-xs" onChange={e => setSelectedFile(e.target.files[0])} />}
@@ -507,20 +428,6 @@
                                     </>
                                 )}
                                 <button type="button" onClick={() => setDetailModal(null)} className="w-full mt-6 text-gray-500 font-bold uppercase text-xs">Close</button>
-                            </div>
-                        </div>
-                    )}
-
-                    {showImportModal && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
-                            <div className="bg-white p-8 rounded-3xl w-full max-w-3xl">
-                                <h3 className="text-xl font-bold mb-3 uppercase">Mass Import Stores</h3>
-                                <p className="text-xs text-gray-500 mb-4">Paste JSON array or CSV/TSV/pipe rows in this order: type, name, storeNumber, streetAddress, city, stateCode, zipCode, phone, coachName.</p>
-                                <textarea rows={12} className="w-full p-3 bg-gray-100 rounded-xl text-sm" value={importText} onChange={(e) => setImportText(e.target.value)} placeholder={`Fast Food,Burger King,26183,123 Main St,Dallas,TX,75001,4696607992,Jane Smith`} />
-                                <div className="flex gap-3 mt-4">
-                                    <button onClick={handleMassImport} className="px-5 py-3 bg-emerald-600 text-white rounded-xl font-bold text-sm">Import</button>
-                                    <button onClick={() => setShowImportModal(false)} className="px-5 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold text-sm">Cancel</button>
-                                </div>
                             </div>
                         </div>
                     )}
