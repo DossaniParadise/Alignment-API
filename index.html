@@ -139,10 +139,8 @@
                     type: record.type || "Fast Food",
                     streetAddress: record.streetAddress || record.address || "",
                     city: record.city || "",
-                    stateCode: (record.stateCode || "").toUpperCase().slice(0, 2),
                     zipCode: record.zipCode || "",
                     storeNumber: record.storeNumber || "",
-                    coachId: record.coachId || "",
                     profilePic: record.profilePic || ""
                 });
             };
@@ -276,7 +274,7 @@
                                     <p className="text-sm font-bold text-gray-900">{s.name}</p>
                                     <p className="text-[10px] text-emerald-500 font-bold mt-1">Type: {s.type || "N/A"}</p>
                                     <p className="text-[10px] text-emerald-700 font-bold mt-1">Store #: {s.storeNumber || 'N/A'}</p>
-                                    <p className="text-[10px] text-emerald-600 font-bold italic opacity-70 mt-1">{s.streetAddress || s.address}, {s.city}, {(s.stateCode || "").toUpperCase()} {s.zipCode}</p>
+                                    <p className="text-[10px] text-emerald-600 font-bold italic opacity-70 mt-1">{s.streetAddress || s.address}, {s.city} {s.zipCode}</p>
                                     <p className="text-[10px] text-gray-500 mt-1">Phone: {s.phone ? formatPhone(s.phone) : "No Phone"}</p>
                                     <p className="text-[10px] text-gray-500 mt-1">Coach: {coaches.find(c => c.id === s.coachId)?.firstName || 'Unassigned'}</p>
                                     <button onClick={() => handleStartEdit('store', s)} className="mt-3 text-[10px] font-bold uppercase text-emerald-500 hover:text-emerald-700">Edit</button>
@@ -314,13 +312,8 @@
                                             <input placeholder="Store Number" className="w-full p-3 bg-gray-100 rounded-xl" value={formData.storeNumber || ""} onChange={e => setFormData({...formData, storeNumber: e.target.value})} />
                                             <input placeholder="Street Address" required className="w-full p-3 bg-gray-100 rounded-xl" value={formData.streetAddress || ""} onChange={e => setFormData({...formData, streetAddress: e.target.value})} />
                                             <input placeholder="City" required className="w-full p-3 bg-gray-100 rounded-xl" value={formData.city || ""} onChange={e => setFormData({...formData, city: e.target.value})} />
-                                            <input placeholder="State (2-letter)" required className="w-full p-3 bg-gray-100 rounded-xl uppercase" value={(formData.stateCode || "").toUpperCase()} onChange={e => setFormData({...formData, stateCode: e.target.value.replace(/[^a-zA-Z]/g, "").toUpperCase().slice(0, 2)})} />
                                             <input placeholder="Zip Code" required className="w-full p-3 bg-gray-100 rounded-xl" value={formData.zipCode || ""} onChange={e => setFormData({...formData, zipCode: e.target.value})} />
                                             <input placeholder="Phone" className="w-full p-3 bg-gray-100 rounded-xl" value={formatPhone(formData.phone || "")} onChange={e => setFormData({...formData, phone: e.target.value.replace(/\D/g, "").slice(0, 10)})} />
-                                            <select className="w-full p-3 bg-gray-100 rounded-xl" value={formData.coachId || ""} onChange={e => setFormData({...formData, coachId: e.target.value})}>
-                                                <option value="">Unassigned Coach</option>
-                                                {coaches.map(c => <option key={c.id} value={c.id}>{c.firstName} {c.lastName}</option>)}
-                                            </select>
                                         </>
                                     )}
                                     {showAddModal !== 'store' && <input type="file" className="text-xs" onChange={e => setSelectedFile(e.target.files[0])} />}
