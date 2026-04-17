@@ -203,6 +203,32 @@
                 setIsEditing(false); setShowDiff(false); setLoading(false);
             };
 
+            const coachesByDirector = useMemo(() => {
+                const map = {};
+                coaches.forEach((coach) => {
+                    const key = coach.directorId || "unassigned";
+                    if (!map[key]) map[key] = [];
+                    map[key].push(coach);
+                });
+                return map;
+            }, [coaches]);
+
+            const storesByCoach = useMemo(() => {
+                const map = {};
+                stores.forEach((store) => {
+                    const key = store.coachId || "unassigned";
+                    if (!map[key]) map[key] = [];
+                    map[key].push(store);
+                });
+                return map;
+            }, [stores]);
+
+            const viewCategories = [
+                { key: "C-Store", label: "Convenience Stores" },
+                { key: "Fast Food", label: "Fast Food Restaurants" },
+                { key: "Car Wash", label: "Car Washes" }
+            ];
+
             // Simplified UI for Single File Demo
             return (
                 <div className="min-h-screen p-8">
@@ -226,7 +252,51 @@
                         </div>
                     </header>
 
-                    <main className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    {!isEditing && (
+                        <main className="bg-white border-2 border-gray-800 rounded-sm">
+                            <div className="p-6 border-b-2 border-gray-800 text-center">
+                                <h2 className="text-3xl font-black tracking-tight text-indigo-800">DPM</h2>
+                                <p className="text-xl font-semibold tracking-wide text-red-700 uppercase">Dossani Paradise Management</p>
+                                <p className="text-sm font-bold mt-3">Total Locations <span className="ml-3">{stores.length}</span></p>
+                            </div>
+
+                            {viewCategories.map((category) => {
+                                const typeStores = stores.filter(s => (s.type || "").toLowerCase() === category.key.toLowerCase());
+                                return (
+                                    <section key={category.key} className="border-b-2 border-gray-800 last:border-b-0">
+                                        <div className="flex items-center justify-between bg-slate-200 border-b border-gray-800 px-3 py-1">
+                                            <h3 className="text-xs font-black uppercase">{category.label}</h3>
+                                            <p className="text-xs font-black">Total # of {category.key === "Fast Food" ? "Restaurants" : category.key === "C-Store" ? "C-Stores" : "Car Washes"} Managed: {typeStores.length}</p>
+                                        </div>
+                                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 p-4">
+                                            {directors.map((director) => (
+                                                <div key={`${category.key}-${director.id}`} className="space-y-3">
+                                                    {((coachesByDirector[director.id] || []).filter(c => (storesByCoach[c.id] || []).some(s => (s.type || "").toLowerCase() === category.key.toLowerCase()))).map((coach) => {
+                                                        const coachStores = (storesByCoach[coach.id] || []).filter(s => (s.type || "").toLowerCase() === category.key.toLowerCase());
+                                                        return (
+                                                            <div key={coach.id} className="text-xs">
+                                                                <div className="flex justify-between bg-slate-300 border border-gray-800 px-2 py-1 font-black">
+                                                                    <span>{coach.firstName} {coach.lastName}</span>
+                                                                    <span>{coachStores.length}</span>
+                                                                </div>
+                                                                <div className="space-y-1 p-1">
+                                                                    {coachStores.map((store) => (
+                                                                        <p key={store.id}>{store.name} {store.storeNumber ? `#${store.storeNumber}` : ""}</p>
+                                                                    ))}
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </section>
+                                );
+                            })}
+                        </main>
+                    )}
+
+                    {isEditing && <main className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                         {/* Directors */}
                         <section className="space-y-4 bg-indigo-50/30 p-6 rounded-3xl border border-indigo-100/50 max-h-[70vh] overflow-y-auto">
                             <h2 className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-4">Division Directors</h2>
@@ -285,7 +355,7 @@
                             ))}
                             {isEditing && <button onClick={() => { setEditTarget(null); setFormData({}); setSelectedFile(null); setShowAddModal('store'); }} className="w-full py-3 border-2 border-dashed border-emerald-200 rounded-2xl text-emerald-400 font-bold text-xs uppercase hover:bg-white">+</button>}
                         </section>
-                    </main>
+                    </main>}
 
                     {/* Simple Add Modal */}
                     {showAddModal && (
