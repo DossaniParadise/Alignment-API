@@ -52,6 +52,7 @@
             const [directors, setDirectors] = useState([]);
             const [coaches, setCoaches] = useState([]);
             const [stores, setStores] = useState([]);
+            const [originalDirectors, setOriginalDirectors] = useState([]);
             const [originalCoaches, setOriginalCoaches] = useState([]);
             const [originalStores, setOriginalStores] = useState([]);
             const [showDiff, setShowDiff] = useState(false);
@@ -59,6 +60,9 @@
             const [editTarget, setEditTarget] = useState(null);
             const [formData, setFormData] = useState({});
             const [selectedFile, setSelectedFile] = useState(null);
+            const [dragItem, setDragItem] = useState(null);
+
+            const sortByOrder = (items) => [...items].sort((a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER));
 
             // Load Data
             useEffect(() => {
@@ -164,7 +168,7 @@
                         <section className="space-y-4 bg-indigo-50/30 p-6 rounded-3xl border border-indigo-100/50">
                             <h2 className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-4">Division Directors</h2>
                             {directors.map(d => (
-                                <div key={d.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100">
+                                <div key={d.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100" draggable={isEditing} onDragStart={() => setDragItem({ type: 'director', id: d.id })} onDragOver={(e) => e.preventDefault()} onDrop={() => handleDropOnItem('director', d.id)}>
                                     <div className="flex items-center gap-3">
                                         <img src={d.profilePic || 'https://via.placeholder.com/150'} className="w-12 h-12 rounded-full object-cover" />
                                         <div>
@@ -183,7 +187,7 @@
                         <section className="space-y-4 bg-purple-50/30 p-6 rounded-3xl border border-purple-100/50">
                             <h2 className="text-[10px] font-black uppercase tracking-widest text-purple-400 mb-4">Area Coaches</h2>
                             {coaches.map(c => (
-                                <div key={c.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 bento-card">
+                                <div key={c.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 bento-card" draggable={isEditing} onDragStart={() => setDragItem({ type: 'coach', id: c.id })} onDragOver={(e) => e.preventDefault()} onDrop={() => handleDropOnItem('coach', c.id)}>
                                     <div className="flex items-center gap-3">
                                         <img src={c.profilePic || 'https://via.placeholder.com/150'} className="w-10 h-10 rounded-full object-cover" />
                                         <div>
@@ -205,8 +209,10 @@
                                 <div key={s.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 bento-card">
                                     <p className="text-sm font-bold text-gray-900">{s.name}</p>
                                     <p className="text-[10px] text-emerald-600 font-bold italic opacity-70 mt-1">{s.address}</p>
+                                    <button onClick={() => handleStartEdit('store', s)} className="mt-3 text-[10px] font-bold uppercase text-emerald-500 hover:text-emerald-700">Edit</button>
                                 </div>
                             ))}
+                            {isEditing && <button onClick={() => { setEditTarget(null); setFormData({}); setSelectedFile(null); setShowAddModal('store'); }} className="w-full py-3 border-2 border-dashed border-emerald-200 rounded-2xl text-emerald-400 font-bold text-xs uppercase hover:bg-white">+</button>}
                         </section>
                     </main>
 
