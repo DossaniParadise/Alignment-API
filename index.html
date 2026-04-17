@@ -95,13 +95,7 @@
                         if (url) finalData.profilePic = url;
                     }
                     const coll = showAddModal === 'director' ? 'directors' : showAddModal === 'coach' ? 'coaches' : 'stores';
-                    if (editTarget?.id) {
-                        await db.collection(coll).doc(editTarget.id).set(finalData, { merge: true });
-                    } else {
-                        const id = Math.random().toString(36).substr(2, 9);
-                        await db.collection(coll).doc(id).set(finalData);
-                    }
-                    setEditTarget(null);
+                    await db.collection(coll).doc(id).set(finalData);
                     setShowAddModal(null); setFormData({}); setSelectedFile(null);
                 } catch (err) { console.error(err); } finally { setLoading(false); }
             };
