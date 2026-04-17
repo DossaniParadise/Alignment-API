@@ -66,18 +66,14 @@
 
             // Load Data
             useEffect(() => {
-                const unsubD = db.collection("directors").onSnapshot((s) => {
-                    const data = sortByOrder(s.docs.map(d => ({id: d.id, ...d.data()})));
-                    setDirectors(data);
-                    setOriginalDirectors(data);
-                });
+                const unsubD = db.collection("directors").onSnapshot((s) => setDirectors(s.docs.map(d => ({id: d.id, ...d.data()}))));
                 const unsubC = db.collection("coaches").onSnapshot((s) => {
-                    const data = sortByOrder(s.docs.map(d => ({id: d.id, ...d.data()})));
+                    const data = s.docs.map(d => ({id: d.id, ...d.data()}));
                     setCoaches(data);
                     setOriginalCoaches(data);
                 });
                 const unsubS = db.collection("stores").onSnapshot((s) => {
-                    const data = sortByOrder(s.docs.map(d => ({id: d.id, ...d.data()})));
+                    const data = s.docs.map(d => ({id: d.id, ...d.data()}));
                     setStores(data);
                     setOriginalStores(data);
                     setLoading(false);
@@ -102,18 +98,8 @@
                         const url = await uploadImage(selectedFile);
                         if (url) finalData.profilePic = url;
                     }
-
                     const coll = showAddModal === 'director' ? 'directors' : showAddModal === 'coach' ? 'coaches' : 'stores';
-                    if (editTarget?.id) {
-                        await db.collection(coll).doc(editTarget.id).set(finalData, { merge: true });
-                    } else {
-                        const newId = Math.random().toString(36).substr(2, 9);
-                        if (showAddModal === 'director') finalData.order = directors.length;
-                        if (showAddModal === 'coach') finalData.order = coaches.length;
-                        if (showAddModal === 'store') finalData.order = stores.length;
-                        await db.collection(coll).doc(newId).set(finalData);
-                    }
-                    setEditTarget(null);
+                    await db.collection(coll).doc(id).set(finalData);
                     setShowAddModal(null); setFormData({}); setSelectedFile(null);
                 } catch (err) { console.error(err); } finally { setLoading(false); }
             };
@@ -139,36 +125,12 @@
                 setSelectedFile(null);
             };
 
-            const reorderList = (items, draggedId, targetId) => {
-                const copy = [...items];
-                const from = copy.findIndex(item => item.id === draggedId);
-                const to = copy.findIndex(item => item.id === targetId);
-                if (from < 0 || to < 0 || from === to) return copy;
-                const [moved] = copy.splice(from, 1);
-                copy.splice(to, 0, moved);
-                return copy.map((item, idx) => ({ ...item, order: idx }));
-            };
-
-            const handleDropOnItem = (type, targetId) => {
-                if (!dragItem || dragItem.type !== type || !isEditing) return;
-                if (type === 'director') setDirectors(prev => reorderList(prev, dragItem.id, targetId));
-                if (type === 'coach') setCoaches(prev => reorderList(prev, dragItem.id, targetId));
-                setDragItem(null);
-            };
-
             const saveChanges = async () => {
                 setLoading(true);
                 const batch = db.batch();
-                directors.forEach((d, index) => {
-                    const orig = originalDirectors.find(od => od.id === d.id);
-                    if ((orig?.order ?? null) !== index) batch.update(db.collection("directors").doc(d.id), { order: index });
-                });
                 coaches.forEach(c => {
                     const orig = originalCoaches.find(oc => oc.id === c.id);
-                    const patch = {};
-                    if (orig?.directorId !== c.directorId) patch.directorId = c.directorId || null;
-                    if ((orig?.order ?? null) !== (c.order ?? null)) patch.order = c.order ?? null;
-                    if (Object.keys(patch).length) batch.update(db.collection("coaches").doc(c.id), patch);
+                    if (orig?.directorId !== c.directorId) batch.update(db.collection("coaches").doc(c.id), { directorId: c.directorId || null });
                 });
                 stores.forEach(s => {
                     const orig = originalStores.find(os => os.id === s.id);
@@ -260,23 +222,13 @@
                             <div className="bg-white p-8 rounded-3xl w-full max-w-md">
                                 <h3 className="text-xl font-bold mb-4 uppercase">{editTarget ? `Edit ${showAddModal}` : `New ${showAddModal}`}</h3>
                                 <form onSubmit={handleAdd} className="space-y-4">
-                                    {showAddModal !== 'store' && (
-                                        <>
-                                            <input placeholder="First Name" required className="w-full p-3 bg-gray-100 rounded-xl" value={formData.firstName || ""} onChange={e => setFormData({...formData, firstName: e.target.value})} />
-                                            <input placeholder="Last Name" required className="w-full p-3 bg-gray-100 rounded-xl" value={formData.lastName || ""} onChange={e => setFormData({...formData, lastName: e.target.value})} />
-                                            <input placeholder="Phone" className="w-full p-3 bg-gray-100 rounded-xl" value={formData.phone || ""} onChange={e => setFormData({...formData, phone: e.target.value})} />
-                                        </>
-                                    )}
+                                    <input placeholder="First Name" required className="w-full p-3 bg-gray-100 rounded-xl" value={formData.firstName || ""} onChange={e => setFormData({...formData, firstName: e.target.value})} />
+                                    <input placeholder="Last Name" required className="w-full p-3 bg-gray-100 rounded-xl" value={formData.lastName || ""} onChange={e => setFormData({...formData, lastName: e.target.value})} />
+                                    <input placeholder="Phone" className="w-full p-3 bg-gray-100 rounded-xl" value={formData.phone || ""} onChange={e => setFormData({...formData, phone: e.target.value})} />
                                     {(showAddModal === 'director' || showAddModal === 'coach') && (
                                         <input type="email" placeholder="Email Address" className="w-full p-3 bg-gray-100 rounded-xl" value={formData.email || ""} onChange={e => setFormData({...formData, email: e.target.value})} />
                                     )}
-                                    {showAddModal === 'store' && (
-                                        <>
-                                            <input placeholder="Store Name" required className="w-full p-3 bg-gray-100 rounded-xl" value={formData.name || ""} onChange={e => setFormData({...formData, name: e.target.value})} />
-                                            <input placeholder="Store Address" required className="w-full p-3 bg-gray-100 rounded-xl" value={formData.address || ""} onChange={e => setFormData({...formData, address: e.target.value})} />
-                                        </>
-                                    )}
-                                    {showAddModal !== 'store' && <input type="file" className="text-xs" onChange={e => setSelectedFile(e.target.files[0])} />}
+                                    <input type="file" className="text-xs" onChange={e => setSelectedFile(e.target.files[0])} />
                                     <button className="w-full py-4 bg-indigo-600 text-white font-bold rounded-xl shadow-lg">{editTarget ? "Save Changes" : "Create"}</button>
                                     <button type="button" onClick={closeModal} className="w-full text-gray-400 font-bold uppercase text-[10px]">Cancel</button>
                                 </form>
