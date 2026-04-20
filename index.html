@@ -309,6 +309,7 @@
                                             <p className="text-[10px] text-gray-400 uppercase font-black">{d.phone ? formatPhone(d.phone) : 'No Phone'}</p>
                                             <p className="text-[10px] text-gray-500">{d.email || 'No Email'}</p>
                                         </div>
+                                        {isEditing && <button onClick={(e) => { e.stopPropagation(); handleStartEdit('director', d); }} className="mt-3 text-[10px] font-bold uppercase text-indigo-500 hover:text-indigo-700">Edit</button>}
                                     </div>
                                     <button onClick={(e) => { e.stopPropagation(); handleStartEdit('director', d); }} className="mt-3 text-[10px] font-bold uppercase text-indigo-500 hover:text-indigo-700">Edit</button>
                                 </div>
@@ -329,6 +330,14 @@
                                             <p className="text-[10px] text-gray-500">{c.email || 'No Email'}</p>
                                             <p className="text-[10px] text-purple-500 font-bold mt-1">Stores: {stores.filter(s => s.coachId === c.id).length}</p>
                                         </div>
+                                        {assignedStores.length > 0 && (
+                                            <div className="mt-3 flex flex-wrap gap-2">
+                                                {assignedStores.slice(0, 8).map(s => (
+                                                    <span key={s.id} className="px-2 py-1 rounded-lg bg-purple-100 text-purple-700 text-[10px] font-bold">{s.name} {s.storeNumber ? `#${s.storeNumber}` : ""}</span>
+                                                ))}
+                                            </div>
+                                        )}
+                                        {isEditing && <button onClick={(e) => { e.stopPropagation(); handleStartEdit('coach', c); }} className="mt-3 text-[10px] font-bold uppercase text-purple-500 hover:text-purple-700">Edit</button>}
                                     </div>
                                     <button onClick={(e) => { e.stopPropagation(); handleStartEdit('coach', c); }} className="mt-3 text-[10px] font-bold uppercase text-purple-500 hover:text-purple-700">Edit</button>
                                 </div>
