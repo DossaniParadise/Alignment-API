@@ -2309,15 +2309,62 @@
           if (headerIndices.entity !== -1) entity = columns[headerIndices.entity] || '';
           if (headerIndices.storeNumber !== -1) storeNumber = columns[headerIndices.storeNumber] || '';
         } else {
-          // Standard Positional fallback logic matching user's exact paste
-          rawStoreName = columns[0] || '';
-          storeManager = columns[1] || '';
-          rawAddress = columns[2] || '';
-          city = columns[3] || '';
-          state = columns[4] || '';
-          zip = columns[5] || '';
-          phone = columns[6] || '';
-          entity = columns[7] || '';
+          // Auto-detect format structure (Old vs New format)
+          // New format contains column for Entity: Entity, StoreName, Manager, Address, City, State, Zip, Phone (8 columns)
+          // Old format was: StoreName, Manager, Address, City, State, Zip, Phone, Entity (7-8 columns)
+          let isNewFormat = false;
+          if (columns.length >= 8) {
+            const col4 = (columns[4] || "").toUpperCase().trim();
+            const col5 = (columns[5] || "").toUpperCase().trim();
+            const col6 = (columns[6] || "").trim();
+            const col7 = (columns[7] || "").trim();
+            
+            const isStateAt5 = col5.length === 2 && /^[A-Z]{2}$/.test(col5);
+            const isStateAt4 = col4.length === 2 && /^[A-Z]{2}$/.test(col4);
+            const isZipAt6 = /^\d{5}(-\d{4})?$/.test(col6);
+            const isZipAt5 = /^\d{5}(-\d{4})?$/.test(col5);
+            
+            if (isStateAt5 && isZipAt6) {
+              isNewFormat = true;
+            } else if (isStateAt4 && isZipAt5) {
+              isNewFormat = false;
+            } else {
+              // Fallback checking where phone is: index 7 vs index 6
+              const isPhoneAt7 = /[\d() -]{7,}/.test(col7) && col7.replace(/\D/g, '').length >= 7;
+              const isPhoneAt6 = /[\d() -]{7,}/.test(col6) && col6.replace(/\D/g, '').length >= 7;
+              if (isPhoneAt7 && !isPhoneAt6) {
+                isNewFormat = true;
+              } else if (isPhoneAt6 && !isPhoneAt7) {
+                isNewFormat = false;
+              } else {
+                // Heuristic: If first column looks like an entity company
+                const col0Lower = columns[0].toLowerCase();
+                if (col0Lower.includes('llc') || col0Lower.includes('inc') || col0Lower.includes('holdings') || col0Lower.includes('restaurants')) {
+                  isNewFormat = true;
+                }
+              }
+            }
+          }
+          
+          if (isNewFormat) {
+            entity = columns[0] || '';
+            rawStoreName = columns[1] || '';
+            storeManager = columns[2] || '';
+            rawAddress = columns[3] || '';
+            city = columns[4] || '';
+            state = columns[5] || '';
+            zip = columns[6] || '';
+            phone = columns[7] || '';
+          } else {
+            rawStoreName = columns[0] || '';
+            storeManager = columns[1] || '';
+            rawAddress = columns[2] || '';
+            city = columns[3] || '';
+            state = columns[4] || '';
+            zip = columns[5] || '';
+            phone = columns[6] || '';
+            entity = columns[7] || '';
+          }
         }
         
         // Skip rows with empty name and number
