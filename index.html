@@ -116,17 +116,19 @@
     /* Main Container with 3 Columns */
     .dashboard-container {
       display: flex;
-      gap: 20px;
-      padding: 25px;
-      max-width: 1600px;
+      gap: 16px;
+      padding: 16px;
+      max-width: 100%;
       margin: 0 auto;
       height: calc(100vh - 120px);
-      min-height: 600px;
+      overflow-x: auto;
+      align-items: stretch;
     }
 
     /* Column Styles */
     .column {
       flex: 1;
+      min-width: 320px;
       background-color: var(--bg-white);
       border-radius: 8px;
       border: 1px solid var(--neutral-border);
@@ -137,7 +139,7 @@
     }
 
     .column-header {
-      padding: 15px 20px;
+      padding: 12px 16px;
       border-bottom: 1px solid var(--neutral-border);
       display: flex;
       justify-content: space-between;
@@ -146,7 +148,7 @@
     }
 
     .column-title {
-      font-size: 1rem;
+      font-size: 0.95rem;
       font-weight: 600;
       color: #334155;
       display: flex;
@@ -515,6 +517,147 @@
       gap: 10px;
       background-color: var(--neutral-light);
     }
+
+    /* Collapsible History Tray */
+    .history-tray {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background-color: var(--bg-white);
+      border-top: 1px solid var(--neutral-border);
+      box-shadow: 0 -4px 10px rgba(0,0,0,0.05);
+      z-index: 200;
+      transition: height 0.3s ease;
+      height: 45px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .history-tray.expanded {
+      height: 240px;
+    }
+
+    .history-tray-header {
+      height: 45px;
+      min-height: 45px;
+      padding: 0 25px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background-color: var(--neutral-light);
+      cursor: pointer;
+      border-bottom: 1px solid var(--neutral-border);
+      user-select: none;
+    }
+
+    .history-tray-title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: #334155;
+    }
+
+    .history-counter-badge {
+      background-color: #2563eb;
+      color: #ffffff;
+      font-size: 0.72rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 12px;
+      margin-left: 6px;
+    }
+
+    .tray-toggle-arrow {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+      transition: transform 0.3s;
+    }
+
+    .history-tray.expanded .tray-toggle-arrow {
+      transform: rotate(180deg);
+    }
+
+    .history-tray-body {
+      flex: 1;
+      padding: 15px 25px;
+      overflow-y: auto;
+      background-color: #f8fafc;
+    }
+
+    .history-log-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .history-log-item {
+      font-size: 0.8rem;
+      color: #475569;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 4px 0;
+      border-bottom: 1px dashed #e2e8f0;
+    }
+
+    .history-log-timestamp {
+      font-family: monospace;
+      color: var(--text-muted);
+      font-weight: 500;
+      font-size: 0.78rem;
+    }
+
+    .history-empty-message {
+      text-align: center;
+      padding: 30px;
+      color: #94a3b8;
+      font-style: italic;
+      font-size: 0.82rem;
+    }
+
+    /* Droppable card green dashed border indicator */
+    .card.drag-hover-target {
+      border: 2px dashed #16a34a !important;
+      background-color: #f0fdf4 !important;
+      transform: scale(1.02);
+      box-shadow: 0 4px 10px rgba(22,163,74,0.1) !important;
+    }
+
+    /* Compact landscape tweaks for heights under 650px */
+    @media (max-height: 650px) {
+      header {
+        padding: 8px 15px !important;
+      }
+      .header-logo h1 {
+        font-size: 1.1rem !important;
+      }
+      .dashboard-container {
+        padding: 8px !important;
+        gap: 10px !important;
+        height: calc(100vh - 105px) !important;
+      }
+      .column-header {
+        padding: 8px 12px !important;
+      }
+      .cards-list {
+        padding: 8px !important;
+        gap: 8px !important;
+      }
+      .card {
+        padding: 10px !important;
+      }
+      .history-tray-header {
+        height: 38px !important;
+        min-height: 38px !important;
+      }
+      .history-tray {
+        height: 38px;
+      }
+      .history-tray.expanded {
+        height: 180px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -554,12 +697,6 @@
         </div>
         <button class="btn btn-primary btn-xs" onclick="openCreateModal('director')">+ Add</button>
       </div>
-      
-      <!-- Selection active bar notification -->
-      <div id="directorFilterBar" class="filter-message-bar" style="display: none;">
-        <span>Filter applied to layout columns</span>
-        <button class="clear-filter-btn" onclick="clearFilters()">Clear</button>
-      </div>
 
       <div class="cards-list" id="directorsList">
         <!-- Directors loaded dynamically by database listeners -->
@@ -574,6 +711,12 @@
           <span class="column-counter" id="coachCount">0</span>
         </div>
         <button class="btn btn-primary btn-xs" onclick="openCreateModal('coach')">+ Add</button>
+      </div>
+
+      <!-- Scoped Area Coach filter bar -->
+      <div id="coachFilterBar" class="filter-message-bar" style="display: none;">
+        <span id="coachFilterText" style="font-weight: 500;">Filtered by Director</span>
+        <button class="clear-filter-btn" onclick="clearDirectorFilter()">Show All</button>
       </div>
 
       <!-- Drag indicator area dropzone -->
@@ -595,6 +738,12 @@
         </div>
       </div>
 
+      <!-- Scoped Restaurant filter bar -->
+      <div id="restaurantFilterBar" class="filter-message-bar" style="display: none;">
+        <span id="restaurantFilterText" style="font-weight: 500;">Filtered</span>
+        <button class="clear-filter-btn" onclick="clearRestaurantFilters()">Show All</button>
+      </div>
+
       <!-- Drag indicator area dropzone -->
       <div class="cards-list" id="restaurantsList" ondragover="handleDragOverList(event)" ondragleave="handleDragLeaveList(event)" ondrop="handleDropOnRestaurantList(event)">
         <!-- Restaurants loaded dynamically by database listeners -->
@@ -602,6 +751,28 @@
     </section>
 
   </main>
+
+  <!-- ==================================================================== -->
+  <!-- COLLAPSIBLE DESK HISTORY TRAY                                        -->
+  <!-- ==================================================================== -->
+  <section class="history-tray" id="historyTray">
+    <div class="history-tray-header" onclick="toggleHistoryTray()">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 1rem;">📋</span>
+        <span class="history-tray-title">Organizational Changes History</span>
+        <span class="history-counter-badge" id="historyCount">0 net changes</span>
+      </div>
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <button class="btn btn-primary btn-xs" style="font-weight: 600;" onclick="event.stopPropagation(); copyHistoryToClipboard()"><span id="copyBtnText">Copy History</span></button>
+        <span class="tray-toggle-arrow">▲</span>
+      </div>
+    </div>
+    <div class="history-tray-body">
+      <div class="history-log-list" id="historyLogList">
+        <!-- Live dynamic changes stream -->
+      </div>
+    </div>
+  </section>
 
   <!-- ==================================================================== -->
   <!-- MODAL FOR CREATE & EDIT FORM DIALOGS                                 -->
@@ -769,6 +940,44 @@
     let selectedDirectorId = null;
     let selectedCoachId = null;
 
+    // Card inline expansion state tracking (Only one expanded card per column is allowed)
+    let expandedDirectorId = null;
+    let expandedCoachId = null;
+    let expandedRestaurantId = null;
+
+    // Original loaded baseline for net history delta analysis
+    let initialCoaches = {};
+    let initialRestaurants = {};
+    let initialLoadCaptured = false;
+    let loadedPaths = { directors: false, areaCoaches: false, restaurants: false };
+
+    // Realtime change event logs timestamps
+    const changeTimestamps = {};
+
+    function checkInitialLoadCaptured() {
+      if (!initialLoadCaptured && loadedPaths.directors && loadedPaths.areaCoaches && loadedPaths.restaurants) {
+        // Clone exact nested data snapshot of assignments on page load
+        initialCoaches = JSON.parse(JSON.stringify(areaCoaches));
+        initialRestaurants = JSON.parse(JSON.stringify(restaurants));
+        initialLoadCaptured = true;
+        console.log("Original org baseline captured for change tracking!", initialCoaches, initialRestaurants);
+        renderHistory();
+      }
+    }
+
+    function trackChangeTimestamp(id) {
+      if (!changeTimestamps[id]) {
+        changeTimestamps[id] = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      }
+    }
+
+    function getChangeTimestamp(id) {
+      if (!changeTimestamps[id]) {
+        trackChangeTimestamp(id);
+      }
+      return changeTimestamps[id];
+    }
+
     // Monitor Firebase Connection Status
     db.ref(".info/connected").on("value", function(snap) {
       const statusDiv = document.getElementById("connectionStatus");
@@ -787,19 +996,25 @@
     // ==========================================
     db.ref("directors").on("value", (snapshot) => {
       directors = snapshot.val() || {};
+      loadedPaths.directors = true;
       renderAll();
       updateRelationshipDropdowns();
+      checkInitialLoadCaptured();
     });
 
     db.ref("areaCoaches").on("value", (snapshot) => {
       areaCoaches = snapshot.val() || {};
+      loadedPaths.areaCoaches = true;
       renderAll();
       updateRelationshipDropdowns();
+      checkInitialLoadCaptured();
     });
 
     db.ref("restaurants").on("value", (snapshot) => {
       restaurants = snapshot.val() || {};
+      loadedPaths.restaurants = true;
       renderAll();
+      checkInitialLoadCaptured();
     });
 
     // ==========================================
@@ -809,6 +1024,48 @@
       renderDirectors();
       renderCoaches();
       renderRestaurants();
+      renderHistory();
+      updateFilterBars();
+    }
+
+    // Toggle expansion inline (Only one allowed expanded per column at a time)
+    function toggleDirectorExpand(dirId) {
+      if (expandedDirectorId === dirId) {
+        expandedDirectorId = null;
+      } else {
+        expandedDirectorId = dirId;
+      }
+      selectDirector(dirId);
+    }
+
+    function toggleCoachExpand(coachId) {
+      if (expandedCoachId === coachId) {
+        expandedCoachId = null;
+      } else {
+        expandedCoachId = coachId;
+      }
+      selectCoach(coachId);
+    }
+
+    function toggleRestaurantExpand(restId) {
+      if (expandedRestaurantId === restId) {
+        expandedRestaurantId = null;
+      } else {
+        expandedRestaurantId = restId;
+      }
+      renderAll();
+    }
+
+    // Short store name helper for collapsed view
+    function getShortStoreName(storeName, storeNumber) {
+      if (!storeName) return "";
+      let name = storeName;
+      if (storeNumber && storeNumber !== '#') {
+        name = name.replace(storeNumber, '').trim();
+      }
+      name = name.replace(/#[A-Za-z0-9_-]+/g, '').trim();
+      name = name.replace(/\s+/g, ' ');
+      return name || storeName;
     }
 
     // Render operations column
@@ -828,39 +1085,41 @@
       keys.forEach((dirId) => {
         const dir = directors[dirId];
         const isSelected = selectedDirectorId === dirId;
+        const isExpanded = expandedDirectorId === dirId;
         
         const card = document.createElement("div");
         card.className = `card ${isSelected ? 'selected' : ''}`;
         card.setAttribute("data-id", dirId);
         card.setAttribute("data-type", "director");
         
-        // Directors are a valid dropzone for coach and direct reports
-        card.addEventListener("click", () => selectDirector(dirId));
+        // Click toggles inline expansion and active filtering
+        card.addEventListener("click", () => toggleDirectorExpand(dirId));
         card.addEventListener("dragover", handleDragOverCard);
         card.addEventListener("dragleave", handleDragLeaveCard);
         card.addEventListener("drop", handleDropOnDirectorCard);
 
-        card.innerHTML = `
-          <div class="card-header-row">
-            <div class="card-title">${escapeHtml(dir.name)}</div>
-            <div class="card-actions">
-              <button class="btn btn-icon btn-icon-edit" onclick="event.stopPropagation(); openEditModal('director', '${dirId}')">✎</button>
-              <button class="btn btn-icon btn-icon-delete" onclick="event.stopPropagation(); deleteEntry('director', '${dirId}')">✕</button>
+        if (isExpanded) {
+          card.innerHTML = `
+            <div class="card-header-row">
+              <div class="card-title">${escapeHtml(dir.name)} <span style="font-weight: normal; color: #3b82f6; font-size: 0.72rem; margin-left: 4px;">(Active)</span></div>
+              <div class="card-actions">
+                <button class="btn btn-icon btn-icon-edit" onclick="event.stopPropagation(); openEditModal('director', '${dirId}')">✎</button>
+                <button class="btn btn-icon btn-icon-delete" onclick="event.stopPropagation(); deleteEntry('director', '${dirId}')">✕</button>
+              </div>
             </div>
-          </div>
-          <div class="card-detail">✉ ${escapeHtml(dir.email || 'No email')}</div>
-          <div class="card-detail">☎ ${escapeHtml(formatPhoneNumber(dir.phone) || 'No phone')}</div>
-        `;
+            <div class="card-detail" style="margin-top: 6px;">✉ ${escapeHtml(dir.email || 'No email')}</div>
+            <div class="card-detail">☎ ${escapeHtml(formatPhoneNumber(dir.phone) || 'No phone')}</div>
+          `;
+        } else {
+          card.innerHTML = `
+            <div class="card-header-row" style="margin-bottom: 0; align-items: center;">
+              <div class="card-title">${escapeHtml(dir.name)}</div>
+              <span style="font-size: 0.65rem; color: #a1a1aa; font-weight: 500;">Click to reveal</span>
+            </div>
+          `;
+        }
         listDiv.appendChild(card);
       });
-
-      // Update Filter Bar Display
-      const filterBar = document.getElementById("directorFilterBar");
-      if (selectedDirectorId) {
-        filterBar.style.display = "flex";
-      } else {
-        filterBar.style.display = "none";
-      }
     }
 
     // Render area coaches column
@@ -885,6 +1144,7 @@
       keys.forEach((coachId) => {
         const coach = areaCoaches[coachId];
         const isSelected = selectedCoachId === coachId;
+        const isExpanded = expandedCoachId === coachId;
         const dirName = coach.assignedDirectorId && directors[coach.assignedDirectorId] ? directors[coach.assignedDirectorId].name : null;
 
         const card = document.createElement("div");
@@ -893,8 +1153,8 @@
         card.setAttribute("data-id", coachId);
         card.setAttribute("data-type", "coach");
 
-        // Click to filter by coach
-        card.addEventListener("click", () => selectCoach(coachId));
+        // Click to filter and toggle inline details
+        card.addEventListener("click", () => toggleCoachExpand(coachId));
         
         // Native HTML5 Drag events
         card.addEventListener("dragstart", handleDragStart);
@@ -905,20 +1165,35 @@
         card.addEventListener("dragleave", handleDragLeaveCard);
         card.addEventListener("drop", handleDropOnCoachCard);
 
-        card.innerHTML = `
-          <div class="card-header-row">
-            <div class="card-title">${escapeHtml(coach.name)}</div>
-            <div class="card-actions">
-              <button class="btn btn-icon btn-icon-edit" onclick="event.stopPropagation(); openEditModal('coach', '${coachId}')">✎</button>
-              <button class="btn btn-icon btn-icon-delete" onclick="event.stopPropagation(); deleteEntry('coach', '${coachId}')">✕</button>
+        if (isExpanded) {
+          card.innerHTML = `
+            <div class="card-header-row">
+              <div class="card-title flex items-center gap-1.5" style="align-items: center;">
+                <span style="color: #94a3b8; font-family: monospace; font-size: 0.75rem; user-select: none;">⋮⋮</span>
+                ${escapeHtml(coach.name)} <span style="font-weight: normal; color: #3b82f6; font-size: 0.72rem; margin-left: 4px;">(Active)</span>
+              </div>
+              <div class="card-actions">
+                <button class="btn btn-icon btn-icon-edit" onclick="event.stopPropagation(); openEditModal('coach', '${coachId}')">✎</button>
+                <button class="btn btn-icon btn-icon-delete" onclick="event.stopPropagation(); deleteEntry('coach', '${coachId}')">✕</button>
+              </div>
             </div>
-          </div>
-          <div class="card-detail">✉ ${escapeHtml(coach.email || 'No email')}</div>
-          <div class="card-detail">☎ ${escapeHtml(formatPhoneNumber(coach.phone) || 'No phone')}</div>
-          <div class="assignment-tags">
-            ${dirName ? `<span class="relation-badge badge-director">Director: ${escapeHtml(dirName)}</span>` : '<span class="relation-badge badge-unassigned">No Director</span>'}
-          </div>
-        `;
+            <div class="card-detail" style="margin-top: 6px;">✉ ${escapeHtml(coach.email || 'No email')}</div>
+            <div class="card-detail">☎ ${escapeHtml(formatPhoneNumber(coach.phone) || 'No phone')}</div>
+            <div class="assignment-tags">
+              ${dirName ? `<span class="relation-badge badge-director">Director: ${escapeHtml(dirName)}</span>` : '<span class="relation-badge badge-unassigned">No Director</span>'}
+            </div>
+          `;
+        } else {
+          card.innerHTML = `
+            <div class="card-header-row" style="margin-bottom: 0; align-items: center;">
+              <div class="card-title flex items-center gap-1.5" style="align-items: center;">
+                <span style="color: #cbd5e1; font-family: monospace; font-size: 0.75rem; user-select: none;">⋮⋮</span>
+                ${escapeHtml(coach.name)}
+              </div>
+              <span style="font-size: 0.65rem; color: #a1a1aa; font-weight: 500;">Click to reveal</span>
+            </div>
+          `;
+        }
         listDiv.appendChild(card);
       });
     }
@@ -950,6 +1225,8 @@
         if (directReportKeys.length > 0) {
           const header = document.createElement("div");
           header.className = "group-divider";
+          header.style.fontSize = "0.7rem";
+          header.style.fontWeight = "bold";
           header.innerText = "Direct Reports";
           listDiv.appendChild(header);
           renderRestaurantListPlain(directReportKeys, listDiv);
@@ -958,6 +1235,8 @@
         if (coachReportKeys.length > 0) {
           const header = document.createElement("div");
           header.className = "group-divider";
+          header.style.fontSize = "0.7rem";
+          header.style.fontWeight = "bold";
           header.innerText = "Coach Reports";
           listDiv.appendChild(header);
           renderRestaurantListPlain(coachReportKeys, listDiv);
@@ -982,6 +1261,7 @@
 
       keys.forEach((restId) => {
         const rest = restaurants[restId];
+        const isExpanded = expandedRestaurantId === restId;
         const coachName = rest.assignedAreaCoachId && areaCoaches[rest.assignedAreaCoachId] ? areaCoaches[rest.assignedAreaCoachId].name : null;
         const dirName = rest.assignedDirectorId && directors[rest.assignedDirectorId] ? directors[rest.assignedDirectorId].name : null;
 
@@ -991,29 +1271,47 @@
         card.setAttribute("data-id", restId);
         card.setAttribute("data-type", "restaurant");
 
+        // Click to expand restaurant details inline
+        card.addEventListener("click", () => toggleRestaurantExpand(restId));
+
         // Drag handlers
         card.addEventListener("dragstart", handleDragStart);
         card.addEventListener("dragend", handleDragEnd);
 
-        card.innerHTML = `
-          <div class="card-header-row">
-            <div class="card-title">
-              <span class="store-badge">${escapeHtml(rest.storeNumber || '#')}</span>
-              ${escapeHtml(rest.storeName)}
+        if (isExpanded) {
+          card.innerHTML = `
+            <div class="card-header-row">
+              <div class="card-title flex items-center gap-1.5" style="align-items: center;">
+                <span style="color: #94a3b8; font-family: monospace; font-size: 0.75rem; user-select: none;">⋮⋮</span>
+                <span class="store-badge" style="background-color: #2563eb; color: #ffffff; font-size: 0.7rem; padding: 2px 5px; border-radius: 4px; font-weight: bold; font-family: monospace;">${escapeHtml(rest.storeNumber || '#')}</span>
+                <span class="font-bold">${escapeHtml(rest.storeName)}</span>
+              </div>
+              <div class="card-actions">
+                <button class="btn btn-icon btn-icon-edit" onclick="event.stopPropagation(); openEditModal('restaurant', '${restId}')">✎</button>
+                <button class="btn btn-icon btn-icon-delete" onclick="event.stopPropagation(); deleteEntry('restaurant', '${restId}')">✕</button>
+              </div>
             </div>
-            <div class="card-actions">
-              <button class="btn btn-icon btn-icon-edit" onclick="openEditModal('restaurant', '${restId}')">✎</button>
-              <button class="btn btn-icon btn-icon-delete" onclick="deleteEntry('restaurant', '${restId}')">✕</button>
+            ${rest.storeManager ? `<div class="card-detail" style="font-weight: 600; color: #334155; margin-top: 6px;">👤 Mgr: ${escapeHtml(rest.storeManager)}</div>` : ''}
+            <div class="card-detail">📍 Address: ${escapeHtml(rest.address || 'No address')}</div>
+            <div class="card-detail">☎ Phone: ${escapeHtml(formatPhoneNumber(rest.phone) || 'No phone')}</div>
+            <div class="assignment-tags">
+              ${dirName ? `<span class="relation-badge badge-director">Dir: ${escapeHtml(dirName)}</span>` : ''}
+              ${coachName ? `<span class="relation-badge badge-coach">Coach: ${escapeHtml(coachName)}</span>` : '<span class="relation-badge badge-unassigned">Direct Report</span>'}
             </div>
-          </div>
-          ${rest.storeManager ? `<div class="card-detail" style="font-weight: 500; color: #1e293b;">👤 Manager: ${escapeHtml(rest.storeManager)}</div>` : ''}
-          <div class="card-detail">📍 ${escapeHtml(rest.address || 'No address')}</div>
-          <div class="card-detail">☎ ${escapeHtml(formatPhoneNumber(rest.phone) || 'No phone')}</div>
-          <div class="assignment-tags">
-            ${dirName ? `<span class="relation-badge badge-director">Dir: ${escapeHtml(dirName)}</span>` : ''}
-            ${coachName ? `<span class="relation-badge badge-coach">Coach: ${escapeHtml(coachName)}</span>` : '<span class="relation-badge badge-unassigned">Direct Report</span>'}
-          </div>
-        `;
+          `;
+        } else {
+          // Collapsed View: store number + short store name
+          card.innerHTML = `
+            <div class="card-header-row" style="margin-bottom: 0; align-items: center;">
+              <div class="card-title flex items-center gap-1.5" style="align-items: center;">
+                <span style="color: #cbd5e1; font-family: monospace; font-size: 0.75rem; user-select: none;">⋮⋮</span>
+                <span class="store-badge" style="font-family: monospace; font-size: 0.7rem; padding: 1px 4px; border-radius: 3px; font-weight: bold;">${escapeHtml(rest.storeNumber || '#')}</span>
+                <span class="font-medium" style="font-size: 0.88rem; color: #334155;">${escapeHtml(getShortStoreName(rest.storeName, rest.storeNumber))}</span>
+              </div>
+              <span style="font-size: 0.65rem; color: #a1a1aa; font-weight: 500;">Expand</span>
+            </div>
+          `;
+        }
         parentContainer.appendChild(card);
       });
     }
@@ -1083,6 +1381,7 @@
 
       // 1. Coach onto Director
       if (draggedElementData.type === "coach") {
+        trackChangeTimestamp(draggedElementData.id);
         db.ref(`areaCoaches/${draggedElementData.id}`).update({
           assignedDirectorId: targetDirectorId
         });
@@ -1090,6 +1389,7 @@
       
       // 2. Restaurant onto Director (becomes a Direct reports to that director)
       if (draggedElementData.type === "restaurant") {
+        trackChangeTimestamp(draggedElementData.id);
         db.ref(`restaurants/${draggedElementData.id}`).update({
           assignedAreaCoachId: "",
           assignedDirectorId: targetDirectorId
@@ -1108,6 +1408,7 @@
       const coach = areaCoaches[targetCoachId];
 
       if (draggedElementData.type === "restaurant" && coach) {
+        trackChangeTimestamp(draggedElementData.id);
         db.ref(`restaurants/${draggedElementData.id}`).update({
           assignedAreaCoachId: targetCoachId,
           assignedDirectorId: coach.assignedDirectorId || ""
@@ -1121,6 +1422,7 @@
       e.currentTarget.classList.remove("drag-hover");
 
       if (draggedElementData && draggedElementData.type === "coach") {
+        trackChangeTimestamp(draggedElementData.id);
         db.ref(`areaCoaches/${draggedElementData.id}`).update({
           assignedDirectorId: ""
         });
@@ -1133,6 +1435,7 @@
       e.currentTarget.classList.remove("drag-hover");
 
       if (draggedElementData && draggedElementData.type === "restaurant") {
+        trackChangeTimestamp(draggedElementData.id);
         db.ref(`restaurants/${draggedElementData.id}`).update({
           assignedAreaCoachId: "",
           assignedDirectorId: ""
@@ -1166,9 +1469,52 @@
       renderAll();
     }
 
-    function clearFilters() {
+    function updateFilterBars() {
+      const coachFilterBar = document.getElementById("coachFilterBar");
+      const coachFilterText = document.getElementById("coachFilterText");
+      const restaurantFilterBar = document.getElementById("restaurantFilterBar");
+      const restaurantFilterText = document.getElementById("restaurantFilterText");
+
+      if (selectedDirectorId) {
+        const dir = directors[selectedDirectorId];
+        const dirName = dir ? dir.name : "Selected Director";
+        if (coachFilterBar) {
+          coachFilterBar.style.display = "flex";
+          coachFilterText.innerHTML = `Showing coaches of <strong>${escapeHtml(dirName)}</strong>`;
+        }
+        if (restaurantFilterBar) {
+          restaurantFilterBar.style.display = "flex";
+          restaurantFilterText.innerHTML = `Showing stores of <strong>${escapeHtml(dirName)}</strong>`;
+        }
+      } else {
+        if (coachFilterBar) coachFilterBar.style.display = "none";
+      }
+
+      if (selectedCoachId) {
+        const coach = areaCoaches[selectedCoachId];
+        const coachName = coach ? coach.name : "Selected Coach";
+        if (restaurantFilterBar) {
+          restaurantFilterBar.style.display = "flex";
+          restaurantFilterText.innerHTML = `Showing stores of Coach <strong>${escapeHtml(coachName)}</strong>`;
+        }
+      } else if (!selectedDirectorId) {
+        if (restaurantFilterBar) restaurantFilterBar.style.display = "none";
+      }
+    }
+
+    function clearDirectorFilter() {
       selectedDirectorId = null;
       selectedCoachId = null;
+      expandedDirectorId = null;
+      expandedCoachId = null;
+      renderAll();
+    }
+
+    function clearRestaurantFilters() {
+      selectedDirectorId = null;
+      selectedCoachId = null;
+      expandedDirectorId = null;
+      expandedCoachId = null;
       renderAll();
     }
 
@@ -1592,15 +1938,153 @@
 
     function formatPhoneNumber(phoneStr) {
       if (!phoneStr) return '';
-      // Strip all non-numeric characters
+      // Clean letters and symbols, extracting only pure digits
       const cleaned = String(phoneStr).replace(/\D/g, '');
       if (cleaned.length === 10) {
         return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
       } else if (cleaned.length === 11 && cleaned[0] === '1') {
-        // USA code prefix stripper
         return `${cleaned.slice(1, 4)}-${cleaned.slice(4, 7)}-${cleaned.slice(7)}`;
       }
       return phoneStr;
+    }
+
+    // ==========================================
+    // 11. DYNAMIC SESSION HISTORY CHANGE LOG
+    // ==========================================
+    let historyTrayExpanded = false;
+    function toggleHistoryTray() {
+      const tray = document.getElementById("historyTray");
+      historyTrayExpanded = !historyTrayExpanded;
+      if (historyTrayExpanded) {
+        tray.classList.add("expanded");
+      } else {
+        tray.classList.remove("expanded");
+      }
+    }
+
+    function calculateNetChanges() {
+      const logs = [];
+
+      // 1. Evaluate Area Coaches changes, creations, and removals
+      Object.keys(areaCoaches).forEach(id => {
+        const coach = areaCoaches[id];
+        const initial = initialCoaches[id];
+
+        if (!initial) {
+          const dirName = coach.assignedDirectorId && directors[coach.assignedDirectorId] ? directors[coach.assignedDirectorId].name : 'No Director';
+          logs.push({
+            id: id,
+            text: `Area Coach "${coach.name}": Added (Director: "${dirName}")`
+          });
+        } else if (coach.assignedDirectorId !== initial.assignedDirectorId) {
+          const currentDirName = coach.assignedDirectorId && directors[coach.assignedDirectorId] ? directors[coach.assignedDirectorId].name : 'No Director';
+          const initialDirName = initial.assignedDirectorId && directors[initial.assignedDirectorId] ? directors[initial.assignedDirectorId].name : 'No Director';
+          logs.push({
+            id: id,
+            text: `Area Coach "${coach.name}": Reassigned to Director "${currentDirName}" (Was: "${initialDirName}")`
+          });
+        }
+      });
+
+      Object.keys(initialCoaches).forEach(id => {
+        if (!areaCoaches[id]) {
+          logs.push({
+            id: id,
+            text: `Area Coach "${initialCoaches[id].name}": Removed from directory`
+          });
+        }
+      });
+
+      // 2. Evaluate Restaurants modifications, additions, and deletions
+      Object.keys(restaurants).forEach(id => {
+        const rest = restaurants[id];
+        const initial = initialRestaurants[id];
+
+        if (!initial) {
+          const coachName = rest.assignedAreaCoachId && areaCoaches[rest.assignedAreaCoachId] ? areaCoaches[rest.assignedAreaCoachId].name : 'Direct Report';
+          const dirName = rest.assignedDirectorId && directors[rest.assignedDirectorId] ? directors[rest.assignedDirectorId].name : 'No Director';
+          logs.push({
+            id: id,
+            text: `Restaurant [${rest.storeNumber || '#'}] "${rest.storeName}": Added/Imported (Coach: "${coachName}", Director: "${dirName}")`
+          });
+        } else if (rest.assignedAreaCoachId !== initial.assignedAreaCoachId || rest.assignedDirectorId !== initial.assignedDirectorId) {
+          const currentCoachName = rest.assignedAreaCoachId && areaCoaches[rest.assignedAreaCoachId] ? areaCoaches[rest.assignedAreaCoachId].name : 'Direct Report';
+          const initialCoachName = initial.assignedAreaCoachId && areaCoaches[initial.assignedAreaCoachId] ? areaCoaches[initial.assignedAreaCoachId].name : 'Direct Report';
+          
+          const currentDirName = rest.assignedDirectorId && directors[rest.assignedDirectorId] ? directors[rest.assignedDirectorId].name : 'No Director';
+          const initialDirName = initial.assignedDirectorId && directors[initial.assignedDirectorId] ? directors[initial.assignedDirectorId].name : 'No Director';
+          
+          logs.push({
+            id: id,
+            text: `Restaurant [${rest.storeNumber || '#'}] "${getShortStoreName(rest.storeName, rest.storeNumber)}": Reassigned to Coach "${currentCoachName}" & Director "${currentDirName}" (Was: Coach "${initialCoachName}", Director "${initialDirName}")`
+          });
+        }
+      });
+
+      Object.keys(initialRestaurants).forEach(id => {
+        if (!restaurants[id]) {
+          logs.push({
+            id: id,
+            text: `Restaurant [${initialRestaurants[id].storeNumber || '#'}] "${initialRestaurants[id].storeName}": Removed from directory`
+          });
+        }
+      });
+
+      return logs;
+    }
+
+    function renderHistory() {
+      const historyList = document.getElementById("historyLogList");
+      const historyCountBadge = document.getElementById("historyCount");
+      if (!historyList) return;
+
+      const changes = calculateNetChanges();
+      historyCountBadge.innerText = `${changes.length} net change${changes.length === 1 ? '' : 's'}`;
+
+      if (changes.length === 0) {
+        historyList.innerHTML = `<div class="history-empty-message">No active session modifications detected. Reshape connections or edit cards to log reports.</div>`;
+        return;
+      }
+
+      let html = "";
+      changes.forEach(c => {
+        const timestamp = getChangeTimestamp(c.id);
+        html += `
+          <div class="history-log-item">
+            <span class="history-log-timestamp">[${timestamp}]</span>
+            <span>${escapeHtml(c.text)}</span>
+          </div>
+        `;
+      });
+      historyList.innerHTML = html;
+    }
+
+    function copyHistoryToClipboard() {
+      const changes = calculateNetChanges();
+      if (changes.length === 0) {
+        alert("No organizational modifications have been mapped yet.");
+        return;
+      }
+
+      let text = "ORGANIZATIONAL ALIGNMENT NET CHANGES REPORT\n";
+      text += `Generated on ${new Date().toLocaleDateString()} at ${new Date().toLocaleTimeString()}\n`;
+      text += "=========================================================\n\n";
+
+      changes.forEach((c, index) => {
+        const timestamp = getChangeTimestamp(c.id);
+        text += `${index + 1}. [${timestamp}] ${c.text}\n`;
+      });
+
+      navigator.clipboard.writeText(text).then(() => {
+        const copyBtnText = document.getElementById("copyBtnText");
+        copyBtnText.innerText = "Copied ✔";
+        setTimeout(() => {
+          copyBtnText.innerText = "Copy History";
+        }, 2000);
+      }).catch(err => {
+        console.error("Clipboard export failed: ", err);
+        alert("Clipboard export is blocked inside frame permissions. Check your browser or copy direct from screen.");
+      });
     }
   </script>
 </body>
