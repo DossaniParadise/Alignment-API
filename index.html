@@ -123,8 +123,9 @@
       display: flex;
       gap: 8px;
       padding: 8px;
+      width: 100%;
       max-width: 100%;
-      margin: 0 auto;
+      margin: 0;
       flex: 1;
       height: calc(100vh - 84px);
       overflow: hidden;
@@ -134,8 +135,6 @@
 
     /* Column Styles */
     .column {
-      flex: 1;
-      min-width: 280px;
       background-color: var(--bg-white);
       border-radius: 4px;
       border: 1px solid var(--neutral-border);
@@ -143,6 +142,30 @@
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      transition: flex 0.2s ease, max-width 0.2s ease, min-width 0.2s ease;
+    }
+
+    /* Column sizing: Directors and Coaches are side-by-side, compact but fully readable */
+    .column:nth-child(1),
+    .column:nth-child(2) {
+      flex: 1 1 300px;
+      max-width: 350px;
+      min-width: 250px;
+    }
+
+    /* Restaurants column expanded to occupy all remaining screen space */
+    .column:nth-child(3) {
+      flex: 3 1 auto;
+      min-width: 350px;
+    }
+
+    /* Restaurants Multi-Column Grid Layout */
+    #restaurantsList {
+      display: grid !important;
+      grid-template-columns: repeat(auto-fill, minmax(var(--restaurant-tile-width, 240px), 1fr));
+      grid-auto-rows: max-content;
+      gap: 6px !important;
+      align-content: start;
     }
 
     .column-header {
@@ -700,38 +723,109 @@
       box-shadow: 0 4px 10px rgba(22,163,74,0.1) !important;
     }
 
-    /* Compact landscape tweaks for heights under 650px */
-    @media (max-height: 650px) {
-      header {
-        padding: 8px 15px !important;
+    /* Responsive spacing and layout tweaks */
+    @media (max-width: 1200px) {
+      /* Laptop Screen Adjustments */
+      .column:nth-child(1), .column:nth-child(2) {
+        flex: 1 1 240px;
+        max-width: 290px;
+        min-width: 200px;
       }
-      .header-logo h1 {
-        font-size: 1.1rem !important;
+      .column:nth-child(3) {
+        flex: 2 1 auto;
+      }
+    }
+
+    @media (max-width: 900px) {
+      /* Tablet / Small Laptop Layout */
+      .dashboard-container {
+        gap: 6px;
+        padding: 6px;
+        height: calc(100vh - 84px);
+      }
+      .column:nth-child(1), .column:nth-child(2) {
+        flex: 1 1 200px;
+        max-width: 250px;
+        min-width: 180px;
+      }
+      .column:nth-child(3) {
+        flex: 2 1 auto;
+        min-width: 300px;
+      }
+    }
+
+    @media (max-width: 768px) {
+      /* Portrait Phone Stack Configuration */
+      body {
+        overflow-y: auto;
+        height: auto;
       }
       .dashboard-container {
-        padding: 8px !important;
-        gap: 10px !important;
-        height: calc(100vh - 105px) !important;
+        flex-direction: column;
+        height: auto;
+        overflow-y: visible;
+        gap: 12px;
+        padding: 12px;
       }
-      .column-header {
-        padding: 8px 12px !important;
-      }
-      .cards-list {
-        padding: 8px !important;
-        gap: 8px !important;
-      }
-      .card {
-        padding: 10px !important;
-      }
-      .history-tray-header {
-        height: 38px !important;
-        min-height: 38px !important;
+      .column {
+        height: 480px; /* give comfortable vertical lists for each column when stacked */
+        flex: none !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        min-width: 100% !important;
       }
       .history-tray {
-        height: 38px;
+        position: relative;
+        height: auto !important;
+        min-height: 40px;
       }
-      .history-tray.expanded {
-        height: 180px;
+      .history-tray-body {
+        max-height: 200px;
+      }
+    }
+
+    /* Universal Landscape Mobile / Compact devices height checks (< 550px) */
+    @media (max-height: 550px) {
+      body {
+        overflow: hidden;
+        height: 100vh;
+      }
+      header {
+        padding: 4px 12px !important;
+      }
+      .header-logo h1 {
+        font-size: 0.95rem !important;
+      }
+      .dashboard-container {
+        flex-direction: row !important; /* Force side-by-side */
+        height: calc(100vh - 64px) !important;
+        overflow-x: auto !important; /* Allow side scrolling */
+        overflow-y: hidden !important;
+        align-items: stretch !important;
+        flex-wrap: nowrap !important;
+        padding: 4px !important;
+        gap: 6px !important;
+      }
+      .column {
+        height: 100% !important;
+        flex: 0 0 240px !important; /* Fixed width in landscape scroll mode */
+        width: 240px !important;
+        min-width: 240px !important;
+      }
+      .column:nth-child(3) {
+        flex: 0 0 480px !important; /* Much wider for Grid layout columns */
+        width: 480px !important;
+        min-width: 480px !important;
+      }
+      .cards-list {
+        padding: 4px !important;
+        gap: 4px !important;
+      }
+      .card {
+        padding: 6px !important;
+      }
+      .history-tray {
+        display: none !important; /* Save precious room on small height phones */
       }
     }
   </style>
@@ -1415,6 +1509,33 @@
       const countSpan = document.getElementById("restaurantCount");
       let keys = Object.keys(restaurants);
 
+      // Dynamically calculate appropriate tile width to fit the longest store name in one single line
+      let longestTileWidth = 240; // minimum fallback
+      const allKeys = Object.keys(restaurants);
+      if (allKeys.length > 0) {
+        let maxTextWidth = 0;
+        
+        // Cache canvas so we don't recreate the element unnecessarily during frequent renders
+        let canvas = renderRestaurants.canvas || (renderRestaurants.canvas = document.createElement("canvas"));
+        let ctx = canvas.getContext("2d");
+        ctx.font = '500 14px "Inter", system-ui, -apple-system, sans-serif';
+        
+        allKeys.forEach(id => {
+          const rest = restaurants[id];
+          if (rest) {
+            const shortName = getShortStoreName(rest.storeName, rest.storeNumber) || "";
+            const textWidth = ctx.measureText(shortName).width;
+            if (textWidth > maxTextWidth) {
+              maxTextWidth = textWidth;
+            }
+          }
+        });
+        
+        // Add padding / badge / expand margins (Handle ~16px + Badge ~55px + Expand tag ~45px + general gap/paddings ~24px = ~140px)
+        longestTileWidth = Math.max(225, Math.min(480, Math.ceil(maxTextWidth + 140)));
+      }
+      listDiv.style.setProperty("--restaurant-tile-width", `${longestTileWidth}px`);
+
       // Filter state logic
       if (selectedCoachId) {
         // Filter by specific coach
@@ -1573,13 +1694,13 @@
 
         if (isExpanded) {
           card.innerHTML = `
-            <div class="card-header-row">
-              <div class="card-title flex items-center gap-1.5" style="align-items: center;">
-                <span style="color: #94a3b8; font-family: monospace; font-size: 0.75rem; user-select: none;">⋮⋮</span>
-                <span class="store-badge" style="background-color: #2563eb; color: #ffffff; font-size: 0.7rem; padding: 2px 5px; border-radius: 4px; font-weight: bold; font-family: monospace;">${escapeHtml(rest.storeNumber || '#')}</span>
-                <span class="font-bold">${escapeHtml(rest.storeName)}</span>
+            <div class="card-header-row" style="display: flex; justify-content: space-between; align-items: center; width: 100%; overflow: hidden;">
+              <div class="card-title flex items-center gap-1.5" style="align-items: center; overflow: hidden; display: flex; white-space: nowrap; max-width: calc(100% - 60px); flex: 1;">
+                <span style="color: #94a3b8; font-family: monospace; font-size: 0.75rem; user-select: none; flex-shrink: 0;">⋮⋮</span>
+                <span class="store-badge" style="background-color: #2563eb; color: #ffffff; font-size: 0.7rem; padding: 2px 5px; border-radius: 4px; font-weight: bold; font-family: monospace; flex-shrink: 0;">${escapeHtml(rest.storeNumber || '#')}</span>
+                <span class="font-bold" style="font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 1;">${escapeHtml(rest.storeName)}</span>
               </div>
-              <div class="card-actions">
+              <div class="card-actions" style="flex-shrink: 0; display: flex; gap: 4px; margin-left: 6px;">
                 <button class="btn btn-icon btn-icon-edit" onclick="event.stopPropagation(); openEditModal('restaurant', '${restId}')">✎</button>
                 <button class="btn btn-icon btn-icon-delete" onclick="event.stopPropagation(); deleteEntry('restaurant', '${restId}')">✕</button>
               </div>
@@ -1596,13 +1717,13 @@
         } else {
           // Collapsed View: store number + short store name
           card.innerHTML = `
-            <div class="card-header-row" style="margin-bottom: 0; align-items: center;">
-              <div class="card-title flex items-center gap-1.5" style="align-items: center;">
-                <span style="color: #cbd5e1; font-family: monospace; font-size: 0.75rem; user-select: none;">⋮⋮</span>
-                <span class="store-badge" style="font-family: monospace; font-size: 0.7rem; padding: 1px 4px; border-radius: 3px; font-weight: bold;">${escapeHtml(rest.storeNumber || '#')}</span>
-                <span class="font-medium" style="font-size: 0.88rem; color: #334155;">${escapeHtml(getShortStoreName(rest.storeName, rest.storeNumber))}</span>
+            <div class="card-header-row" style="margin-bottom: 0; align-items: center; width: 100%; display: flex; justify-content: space-between; overflow: hidden;">
+              <div class="card-title flex items-center gap-1.5" style="align-items: center; overflow: hidden; display: flex; white-space: nowrap; max-width: calc(100% - 50px); flex: 1;">
+                <span style="color: #cbd5e1; font-family: monospace; font-size: 0.75rem; user-select: none; flex-shrink: 0;">⋮⋮</span>
+                <span class="store-badge" style="font-family: monospace; font-size: 0.7rem; padding: 1px 4px; border-radius: 3px; font-weight: bold; flex-shrink: 0; overflow: hidden; white-space: nowrap;">${escapeHtml(rest.storeNumber || '#')}</span>
+                <span class="font-medium" style="font-size: 0.88rem; color: #334155; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 1;">${escapeHtml(getShortStoreName(rest.storeName, rest.storeNumber))}</span>
               </div>
-              <span style="font-size: 0.65rem; color: #a1a1aa; font-weight: 500;">Expand</span>
+              <span style="font-size: 0.65rem; color: #a1a1aa; font-weight: 500; flex-shrink: 0; margin-left: 6px;">Expand</span>
             </div>
           `;
         }
