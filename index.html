@@ -518,6 +518,32 @@
       background-color: var(--neutral-light);
     }
 
+    /* Column Sort & Search UI styling */
+    .column-action-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      padding: 8px 16px;
+      border-bottom: 1px solid var(--neutral-border);
+      background-color: #f8fafc;
+    }
+
+    .control-select {
+      font-size: 0.78rem;
+      padding: 4px 8px;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      background-color: var(--bg-white);
+      color: #334155;
+      cursor: pointer;
+      outline: none;
+    }
+
+    .control-select:focus {
+      border-color: var(--primary-color);
+    }
+
     /* Collapsible History Tray */
     .history-tray {
       position: fixed;
@@ -713,6 +739,16 @@
         <button class="btn btn-primary btn-xs" onclick="openCreateModal('coach')">+ Add</button>
       </div>
 
+      <!-- Area Coach sorting options -->
+      <div class="column-action-bar">
+        <span style="font-size: 0.72rem; color: #64748b; font-weight: 500;">Sort:</span>
+        <select class="control-select" id="coachSortSelect" onchange="changeCoachSort(this.value)" style="flex: 1; max-width: 140px;">
+          <option value="none">Default (As Is)</option>
+          <option value="asc">A-Z Name</option>
+          <option value="desc">Z-A Name</option>
+        </select>
+      </div>
+
       <!-- Scoped Area Coach filter bar -->
       <div id="coachFilterBar" class="filter-message-bar" style="display: none;">
         <span id="coachFilterText" style="font-weight: 500;">Filtered by Director</span>
@@ -735,6 +771,27 @@
         <div style="display: flex;">
           <button class="btn btn-primary btn-xs" onclick="openCreateModal('restaurant')">+ Add</button>
           <button class="btn btn-success btn-xs" onclick="openBatchImportModal()" style="margin-left: 6px;">Batch Import</button>
+        </div>
+      </div>
+
+      <!-- Restaurant search and sorting panel -->
+      <div class="column-action-bar" style="flex-direction: column; align-items: stretch; gap: 8px;">
+        <!-- Search bar -->
+        <div style="position: relative; display: flex; align-items: center; width: 100%;">
+          <span style="position: absolute; left: 8px; color: #94a3b8; font-size: 0.8rem; pointer-events: none;">🔍</span>
+          <input type="text" id="restaurantSearchInput" oninput="handleRestaurantSearch(this.value)" placeholder="Search Name, Mgr, Address, Zip..." style="width: 100%; padding: 5px 24px 5px 24px; font-size: 0.75rem; border: 1px solid #cbd5e1; border-radius: 4px; box-sizing: border-box; background-color: var(--bg-white); color: #0f172a;" />
+          <button id="clearSearchBtn" onclick="clearRestaurantSearch()" style="position: absolute; right: 8px; background: none; border: none; color: #94a3b8; font-size: 0.8rem; cursor: pointer; display: none; padding: 0;">✕</button>
+        </div>
+        <!-- Sort block -->
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+          <span style="font-size: 0.72rem; color: #64748b; font-weight: 500;">Sort:</span>
+          <select class="control-select" id="restaurantSortSelect" onchange="changeRestaurantSort(this.value)" style="flex: 1; max-width: 150px; padding: 3px 6px; font-size: 0.72rem;">
+            <option value="none">Default (As Is)</option>
+            <option value="name_asc">Name (A-Z)</option>
+            <option value="name_desc">Name (Z-A)</option>
+            <option value="number_asc">Store Number (Asc)</option>
+            <option value="number_desc">Store Number (Desc)</option>
+          </select>
         </div>
       </div>
 
@@ -945,6 +1002,11 @@
     let expandedCoachId = null;
     let expandedRestaurantId = null;
 
+    // Sorting & Searching state
+    let coachSortMode = "none"; // 'none', 'asc', 'desc'
+    let restaurantSearchQuery = "";
+    let restaurantSortMode = "none"; // 'none', 'name_asc', 'name_desc', 'number_asc', 'number_desc'
+
     // Original loaded baseline for net history delta analysis
     let initialCoaches = {};
     let initialRestaurants = {};
@@ -1136,6 +1198,24 @@
         keys = keys.filter(id => areaCoaches[id].assignedDirectorId === selectedDirectorId);
       }
 
+      // Sorter
+      if (coachSortMode === "asc") {
+        keys.sort((a, b) => {
+          const nameA = (areaCoaches[a].name || "").toLowerCase();
+          const nameB = (areaCoaches[b].name || "").toLowerCase();
+          return nameA.localeCompare(nameB);
+        });
+      } else if (coachSortMode === "desc") {
+        keys.sort((a, b) => {
+          const nameA = (areaCoaches[a].name || "").toLowerCase();
+          const nameB = (areaCoaches[b].name || "").toLowerCase();
+          return nameB.localeCompare(nameA);
+        });
+      }
+
+      // Update visible count to matched list
+      countSpan.innerText = keys.length;
+
       if (keys.length === 0) {
         listDiv.innerHTML = `<div class="card" style="text-align: center; color: var(--text-muted); pointer-events: none;">No Area Coaches matched.</div>`;
         return;
@@ -1204,21 +1284,28 @@
       const countSpan = document.getElementById("restaurantCount");
       let keys = Object.keys(restaurants);
 
-      countSpan.innerText = keys.length;
-      listDiv.innerHTML = "";
-
       // Filter state logic
       if (selectedCoachId) {
         // Filter by specific coach
         keys = keys.filter(id => restaurants[id].assignedAreaCoachId === selectedCoachId);
+        keys = filterAndSortRestaurantKeys(keys);
+        countSpan.innerText = keys.length;
+        listDiv.innerHTML = "";
         renderRestaurantListPlain(keys, listDiv);
       } else if (selectedDirectorId) {
         // Filter by Director: show group splits: Directreports vs Coachreports
-        const directReportKeys = keys.filter(id => restaurants[id].assignedDirectorId === selectedDirectorId && !restaurants[id].assignedAreaCoachId);
-        const coachReportKeys = keys.filter(id => restaurants[id].assignedDirectorId === selectedDirectorId && restaurants[id].assignedAreaCoachId);
+        let directReportKeys = keys.filter(id => restaurants[id].assignedDirectorId === selectedDirectorId && !restaurants[id].assignedAreaCoachId);
+        let coachReportKeys = keys.filter(id => restaurants[id].assignedDirectorId === selectedDirectorId && restaurants[id].assignedAreaCoachId);
+
+        directReportKeys = filterAndSortRestaurantKeys(directReportKeys);
+        coachReportKeys = filterAndSortRestaurantKeys(coachReportKeys);
+
+        const totalFiltered = directReportKeys.length + coachReportKeys.length;
+        countSpan.innerText = totalFiltered;
+        listDiv.innerHTML = "";
 
         if (directReportKeys.length === 0 && coachReportKeys.length === 0) {
-          listDiv.innerHTML = `<div class="card" style="text-align: center; color: var(--text-muted); pointer-events: none;">No Restaurants structured under this Director.</div>`;
+          listDiv.innerHTML = `<div class="card" style="text-align: center; color: var(--text-muted); pointer-events: none;">No Restaurants matched the search or structure under this Director.</div>`;
           return;
         }
 
@@ -1243,8 +1330,72 @@
         }
       } else {
         // Render raw list if no active filters
+        keys = filterAndSortRestaurantKeys(keys);
+        countSpan.innerText = keys.length;
+        listDiv.innerHTML = "";
         renderRestaurantListPlain(keys, listDiv);
       }
+    }
+
+    // Helper to filter and sort restaurant keys
+    function filterAndSortRestaurantKeys(keys) {
+      // 1. Search Query Filter
+      const query = (restaurantSearchQuery || "").toLowerCase().trim();
+      if (query) {
+        keys = keys.filter(id => {
+          const rest = restaurants[id];
+          if (!rest) return false;
+          
+          const storeName = (rest.storeName || "").toLowerCase();
+          const storeNumber = (rest.storeNumber || "").toLowerCase();
+          const manager = (rest.storeManager || "").toLowerCase();
+          const address = (rest.address || "").toLowerCase();
+          
+          return storeName.includes(query) || 
+                 storeNumber.includes(query) || 
+                 manager.includes(query) || 
+                 address.includes(query);
+        });
+      }
+
+      // 2. Sorting Code
+      if (restaurantSortMode === "name_asc") {
+        keys.sort((a, b) => {
+          const nameA = (restaurants[a].storeName || "").toLowerCase();
+          const nameB = (restaurants[b].storeName || "").toLowerCase();
+          return nameA.localeCompare(nameB);
+        });
+      } else if (restaurantSortMode === "name_desc") {
+        keys.sort((a, b) => {
+          const nameA = (restaurants[a].storeName || "").toLowerCase();
+          const nameB = (restaurants[b].storeName || "").toLowerCase();
+          return nameB.localeCompare(nameA);
+        });
+      } else if (restaurantSortMode === "number_asc") {
+        keys.sort((a, b) => {
+          const numA = parseFloat((restaurants[a].storeNumber || "").replace(/\D/g, '')) || 0;
+          const numB = parseFloat((restaurants[b].storeNumber || "").replace(/\D/g, '')) || 0;
+          if (numA !== numB) {
+            return numA - numB;
+          }
+          const strA = (restaurants[a].storeNumber || "");
+          const strB = (restaurants[b].storeNumber || "");
+          return strA.localeCompare(strB, undefined, { numeric: true });
+        });
+      } else if (restaurantSortMode === "number_desc") {
+        keys.sort((a, b) => {
+          const numA = parseFloat((restaurants[a].storeNumber || "").replace(/\D/g, '')) || 0;
+          const numB = parseFloat((restaurants[b].storeNumber || "").replace(/\D/g, '')) || 0;
+          if (numA !== numB) {
+            return numB - numA;
+          }
+          const strA = (restaurants[a].storeNumber || "");
+          const strB = (restaurants[b].storeNumber || "");
+          return strB.localeCompare(strA, undefined, { numeric: true });
+        });
+      }
+
+      return keys;
     }
 
     function renderRestaurantListPlain(keys, parentContainer) {
@@ -1515,7 +1666,54 @@
       selectedCoachId = null;
       expandedDirectorId = null;
       expandedCoachId = null;
+      
+      // Also reset searching
+      const searchInput = document.getElementById("restaurantSearchInput");
+      if (searchInput) searchInput.value = "";
+      restaurantSearchQuery = "";
+      const clearBtn = document.getElementById("clearSearchBtn");
+      if (clearBtn) clearBtn.style.display = "none";
+      
       renderAll();
+    }
+
+    // ==========================================
+    // 6.2 SEARCH AND SORT HANDLERS (DYNAMIC ACTION LISTENERS)
+    // ==========================================
+    function changeCoachSort(val) {
+      coachSortMode = val;
+      renderCoaches();
+    }
+
+    function handleRestaurantSearch(val) {
+      restaurantSearchQuery = val;
+      const clearBtn = document.getElementById("clearSearchBtn");
+      if (clearBtn) {
+        if (val.trim()) {
+          clearBtn.style.display = "block";
+        } else {
+          clearBtn.style.display = "none";
+        }
+      }
+      renderRestaurants();
+    }
+
+    function clearRestaurantSearch() {
+      const searchInput = document.getElementById("restaurantSearchInput");
+      if (searchInput) {
+        searchInput.value = "";
+      }
+      restaurantSearchQuery = "";
+      const clearBtn = document.getElementById("clearSearchBtn");
+      if (clearBtn) {
+        clearBtn.style.display = "none";
+      }
+      renderRestaurants();
+    }
+
+    function changeRestaurantSort(val) {
+      restaurantSortMode = val;
+      renderRestaurants();
     }
 
     // ==========================================
