@@ -1,451 +1,1318 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DPM Area Coach Alignment</title>
-    <!-- Tailwind CSS 4 -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800;900&display=swap');
-        body { font-family: 'Inter', sans-serif; background-color: #F8F9FB; }
-        .bento-card { transition: all 0.2s ease; }
-        .bento-card:hover { border-color: #4F46E5; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1); }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dossani Central Store Manager</title>
+  
+  <!-- ==================================================================== -->
+  <!-- FIREBASE SCRIPTS (Compat v9 CDN)                                     -->
+  <!-- ==================================================================== -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
+
+  <!-- ==================================================================== -->
+  <!-- CSS STYLING (Vanilla, clean, high-contrast admin dashboard feel)     -->
+  <!-- ==================================================================== -->
+  <style>
+    /* Reset & CSS variables */
+    :root {
+      --primary-color: #0d6efd;
+      --primary-dark: #0b5ed7;
+      --success-color: #198754;
+      --danger-color: #dc3545;
+      --warning-color: #ffc107;
+      --neutral-light: #f8f9fa;
+      --neutral-border: #dee2e6;
+      --text-dark: #212529;
+      --text-muted: #6c757d;
+      --bg-white: #ffffff;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
+      --shadow-md: 0 4px 6px rgba(0,0,0,0.05);
+      --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      color: var(--text-dark);
+      background-color: #f1f3f5;
+      line-height: 1.5;
+      padding-bottom: 60px;
+    }
+
+    /* Core Layout */
+    header {
+      background-color: var(--bg-white);
+      border-bottom: 1px grid var(--neutral-border);
+      padding: 15px 30px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .header-logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .header-logo h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      color: #1e293b;
+    }
+
+    .header-logo span {
+      background-color: #e2e8f0;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #475569;
+    }
+
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .status-badge {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      padding: 4px 10px;
+      border-radius: 12px;
+      background-color: #fee2e2;
+      color: #991b1b;
+    }
+
+    .status-badge.online {
+      background-color: #dcfce7;
+      color: #166534;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: currentColor;
+    }
+
+    /* Main Container with 3 Columns */
+    .dashboard-container {
+      display: flex;
+      gap: 20px;
+      padding: 25px;
+      max-width: 1600px;
+      margin: 0 auto;
+      height: calc(100vh - 120px);
+      min-height: 600px;
+    }
+
+    /* Column Styles */
+    .column {
+      flex: 1;
+      background-color: var(--bg-white);
+      border-radius: 8px;
+      border: 1px solid var(--neutral-border);
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .column-header {
+      padding: 15px 20px;
+      border-bottom: 1px solid var(--neutral-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background-color: var(--neutral-light);
+    }
+
+    .column-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #334155;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .column-counter {
+      background-color: #cbd5e1;
+      color: #1e293b;
+      font-size: 0.75rem;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    /* Selection Filter UI Alert */
+    .filter-message-bar {
+      background-color: #eff6ff;
+      border-bottom: 1px solid #bfdbfe;
+      padding: 10px 20px;
+      font-size: 0.85rem;
+      color: #1e40af;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .clear-filter-btn {
+      background: none;
+      border: none;
+      color: #2563eb;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: underline;
+      font-size: 0.85rem;
+    }
+
+    .clear-filter-btn:hover {
+      color: #1d4ed8;
+    }
+
+    /* Cards container */
+    .cards-list {
+      flex: 1;
+      overflow-y: auto;
+      padding: 15px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      background-color: #f8fafc;
+    }
+
+    /* Drag over effects */
+    .cards-list.drag-hover {
+      background-color: #f0fdf4;
+      border: 2px dashed var(--success-color);
+      border-radius: 0 0 8px 8px;
+    }
+
+    /* Card styling */
+    .card {
+      background-color: var(--bg-white);
+      border: 1px solid var(--neutral-border);
+      border-radius: 6px;
+      padding: 15px;
+      cursor: grab;
+      position: relative;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    /* Disable hover triggers inside card for native HTML5 dragover accuracy */
+    .card * {
+      pointer-events: none;
+    }
+
+    /* Custom classes to re-enable button clicking inside the cards */
+    .card button, .card .card-actions {
+      pointer-events: auto !important;
+    }
+
+    .card:hover {
+      border-color: #cbd5e1;
+      box-shadow: var(--shadow-md);
+    }
+
+    .card:active {
+      cursor: grabbing;
+    }
+
+    .card.dragging {
+      opacity: 0.4;
+      border: 1px dashed var(--primary-color);
+    }
+
+    /* Droppable card indicators */
+    .card.drag-hover-target {
+      border-color: var(--success-color) !important;
+      background-color: #f0fdf4 !important;
+      transform: scale(1.02);
+    }
+
+    /* Selection status */
+    .card.selected {
+      border-color: var(--primary-color);
+      border-width: 2px;
+      background-color: #f0f7ff;
+    }
+
+    /* Card Content Detail */
+    .card-header-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 8px;
+    }
+
+    .card-title {
+      font-weight: 600;
+      font-size: 0.95rem;
+      color: #0f172a;
+    }
+
+    .store-badge {
+      font-size: 0.72rem;
+      background-color: #334155;
+      color: #ffffff;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 600;
+    }
+
+    .card-detail {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    /* Sub-text relationships */
+    .assignment-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px solid #f1f5f9;
+    }
+
+    .relation-badge {
+      font-size: 0.7rem;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-weight: 500;
+    }
+
+    .badge-director {
+      background-color: #fef3c7;
+      color: #92400e;
+    }
+
+    .badge-coach {
+      background-color: #e0f2fe;
+      color: #0369a1;
+    }
+
+    .badge-unassigned {
+      background-color: #f1f5f9;
+      color: #475569;
+      border: 1px dashed #cbd5e1;
+    }
+
+    /* Restaurant group titles on selected views */
+    .group-divider {
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #64748b;
+      margin: 10px 0 5px 0;
+      padding-bottom: 4px;
+      border-bottom: 1px solid #e2e8f0;
+      pointer-events: none;
+    }
+
+    /* Card Buttons */
+    .card-actions {
+      display: flex;
+      gap: 6px;
+    }
+
+    /* General buttons styling */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      font-weight: 500;
+      padding: 6px 12px;
+      border-radius: 4px;
+      border: 1px solid #cbd5e1;
+      background-color: var(--bg-white);
+      color: #334155;
+      cursor: pointer;
+      transition: background-color 0.15s, border-color 0.15s;
+    }
+
+    .btn:hover {
+      background-color: var(--neutral-light);
+      border-color: #94a3b8;
+    }
+
+    .btn-primary {
+      background-color: var(--primary-color);
+      color: var(--bg-white);
+      border-color: var(--primary-color);
+    }
+
+    .btn-primary:hover {
+      background-color: var(--primary-dark);
+      border-color: var(--primary-dark);
+    }
+
+    .btn-icon {
+      padding: 4px;
+      font-size: 0.75rem;
+      border-radius: 4px;
+      border: 1px solid #e2e8f0;
+      color: #64748b;
+    }
+
+    .btn-icon-delete:hover {
+      background-color: #fef2f2;
+      border-color: #fca5a5;
+      color: var(--danger-color);
+    }
+
+    .btn-icon-edit:hover {
+      background-color: #f0fdf4;
+      border-color: #86efac;
+      color: var(--success-color);
+    }
+
+    .btn-xs {
+      padding: 2px 6px;
+      font-size: 0.7rem;
+    }
+
+    .seed-btn {
+      background-color: #f8fafc;
+      border: 1px dashed #cbd5e1;
+      font-size: 0.75rem;
+    }
+
+    .seed-btn:hover {
+      background-color: #e2e8f0;
+    }
+
+    /* ==================================================================== */
+    /* MODAL DIALOGS STYLE                                                  */
+    /* ==================================================================== --> */
+    .modal-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: rgba(15, 23, 42, 0.4);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+
+    .modal-backdrop.active {
+      display: flex;
+    }
+
+    .modal-card {
+      background-color: var(--bg-white);
+      border-radius: 8px;
+      box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1);
+      width: 100%;
+      max-width: 480px;
+      border: 1px solid var(--neutral-border);
+      overflow: hidden;
+    }
+
+    .modal-header {
+      padding: 15px 20px;
+      border-bottom: 1px solid var(--neutral-border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background-color: var(--neutral-light);
+    }
+
+    .modal-header h3 {
+      font-size: 1rem;
+      font-weight: 650;
+      color: #0f172a;
+    }
+
+    .modal-close {
+      background: none;
+      border: none;
+      font-size: 1.25rem;
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+
+    .modal-close:hover {
+      color: var(--text-dark);
+    }
+
+    .modal-body {
+      padding: 20px;
+    }
+
+    .form-group {
+      margin-bottom: 15px;
+    }
+
+    .form-group label {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: #475569;
+      margin-bottom: 6px;
+    }
+
+    .form-group input, .form-group select {
+      width: 100%;
+      padding: 8px 12px;
+      font-size: 0.85rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      background-color: var(--bg-white);
+    }
+
+    .form-group input:focus, .form-group select:focus {
+      outline: none;
+      border-color: var(--primary-color);
+      box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.15);
+    }
+
+    .modal-footer {
+      padding: 15px 20px;
+      border-top: 1px solid var(--neutral-border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      background-color: var(--neutral-light);
+    }
+  </style>
 </head>
 <body>
-    <div id="root"></div>
 
-    <!-- Dependencies -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <script src="https://unpkg.com/framer-motion@10.16.4/dist/framer-motion.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <!-- ==================================================================== -->
+  <!-- HEADER BAR                                                           -->
+  <!-- ==================================================================== -->
+  <header>
+    <div class="header-logo">
+      <h1>Dossani Central Store Manager</h1>
+      <span>v2.0 Single Source of Truth</span>
+    </div>
     
-    <!-- Firebase SDK -->
-    <script type="text/babel">
-        // Constants & Keys
-        const firebaseConfig = {
-            apiKey: "AIzaSyDIGLmJ5r_fBhB5xOL8oadQ7csN3wGh2dI",
-            authDomain: "dpm-alignment.firebaseapp.com",
-            projectId: "dpm-alignment",
-            storageBucket: "dpm-alignment.firebasestorage.app",
-            messagingSenderId: "298588092433",
-            appId: "1:298588092433:web:694a9412658adac039d9b0"
-        };
-        const IMGBB_API_KEY = "b733862d15744e2bfaa4329d122f4ba0";
+    <div class="header-actions">
+      <!-- Database Connection Status Badge -->
+      <div id="connectionStatus" class="status-badge">
+        <div class="status-dot"></div>
+        <span id="statusText">Connecting...</span>
+      </div>
 
-        // Initialize Firebase
-        const app = firebase.initializeApp(firebaseConfig);
-        const db = firebase.firestore(app);
+      <!-- Database reset/seeder operation -->
+      <button class="btn seed-btn" onclick="seedDatabase()">Seed Demo Data</button>
+    </div>
+  </header>
 
-        // --- React Logic Starts Here ---
-        const { useState, useEffect, useMemo } = React;
+  <!-- ==================================================================== -->
+  <!-- SERVICE DASHBOARD 3 LAYOUT COLUMNS                                   -->
+  <!-- ==================================================================== -->
+  <main class="dashboard-container">
+    
+    <!-- LEFT COLUMN - DIRECTORS -->
+    <section class="column">
+      <div class="column-header">
+        <div class="column-title">
+          Directors of Operations
+          <span class="column-counter" id="directorCount">0</span>
+        </div>
+        <button class="btn btn-primary btn-xs" onclick="openCreateModal('director')">+ Add</button>
+      </div>
+      
+      <!-- Selection active bar notification -->
+      <div id="directorFilterBar" class="filter-message-bar" style="display: none;">
+        <span>Filter applied to layout columns</span>
+        <button class="clear-filter-btn" onclick="clearFilters()">Clear</button>
+      </div>
 
-        function App() {
-            const [loading, setLoading] = useState(true);
-            const [isEditing, setIsEditing] = useState(false);
-            const [search, setSearch] = useState("");
-            const [directors, setDirectors] = useState([]);
-            const [coaches, setCoaches] = useState([]);
-            const [stores, setStores] = useState([]);
-            const [originalDirectors, setOriginalDirectors] = useState([]);
-            const [originalCoaches, setOriginalCoaches] = useState([]);
-            const [originalStores, setOriginalStores] = useState([]);
-            const [showDiff, setShowDiff] = useState(false);
-            const [showAddModal, setShowAddModal] = useState(null);
-            const [editTarget, setEditTarget] = useState(null);
-            const [detailModal, setDetailModal] = useState(null);
-            const [formData, setFormData] = useState({});
-            const [selectedFile, setSelectedFile] = useState(null);
-            const [dragItem, setDragItem] = useState(null);
-            const STORE_TYPES = ["Fast Food", "C-Store", "Car Wash"];
-            const STORE_NAMES = ["Paradise Quick Stop", "Burger King", "Subway", "Nashville", "Scarborough Car Wash", "Scarborough Travel Stop"];
+      <div class="cards-list" id="directorsList">
+        <!-- Directors loaded dynamically by database listeners -->
+      </div>
+    </section>
 
-            const sortByOrder = (items) => [...items].sort((a, b) => (a.order ?? Number.MAX_SAFE_INTEGER) - (b.order ?? Number.MAX_SAFE_INTEGER));
-            const formatPhone = (raw = "") => {
-                const digits = raw.replace(/\D/g, "").slice(0, 10);
-                if (digits.length <= 3) return digits;
-                if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
-                return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
-            };
+    <!-- MIDDLE COLUMN - AREA COACHES -->
+    <section class="column">
+      <div class="column-header">
+        <div class="column-title">
+          Area Coaches
+          <span class="column-counter" id="coachCount">0</span>
+        </div>
+        <button class="btn btn-primary btn-xs" onclick="openCreateModal('coach')">+ Add</button>
+      </div>
 
-            // Load Data
-            useEffect(() => {
-                const unsubD = db.collection("directors").onSnapshot((s) => {
-                    const data = sortByOrder(s.docs.map(d => ({id: d.id, ...d.data()})));
-                    setDirectors(data);
-                    setOriginalDirectors(data);
-                });
-                const unsubC = db.collection("coaches").onSnapshot((s) => {
-                    const data = sortByOrder(s.docs.map(d => ({id: d.id, ...d.data()})));
-                    setCoaches(data);
-                    setOriginalCoaches(data);
-                });
-                const unsubS = db.collection("stores").onSnapshot((s) => {
-                    const data = sortByOrder(s.docs.map(d => ({id: d.id, ...d.data()})));
-                    setStores(data);
-                    setOriginalStores(data);
-                    setLoading(false);
-                });
-                return () => { unsubD(); unsubC(); unsubS(); };
-            }, []);
+      <!-- Drag indicator area dropzone -->
+      <div class="cards-list" id="coachesList" ondragover="handleDragOverList(event)" ondragleave="handleDragLeaveList(event)" ondrop="handleDropOnCoachList(event)">
+        <!-- Area Coaches loaded dynamically by database listeners -->
+      </div>
+    </section>
 
-            const uploadImage = async (file) => {
-                const body = new FormData();
-                body.append("image", file);
-                const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMGBB_API_KEY}`, { method: "POST", body });
-                const json = await res.json();
-                return json.success ? json.data.url : null;
-            };
+    <!-- RIGHT COLUMN - RESTAURANTS -->
+    <section class="column">
+      <div class="column-header">
+        <div class="column-title">
+          Restaurants
+          <span class="column-counter" id="restaurantCount">0</span>
+        </div>
+        <button class="btn btn-primary btn-xs" onclick="openCreateModal('restaurant')">+ Add</button>
+      </div>
 
-            const handleAdd = async (e) => {
-                e.preventDefault();
-                setLoading(true);
-                try {
-                    let finalData = { ...formData };
-                    if (selectedFile) {
-                        const url = await uploadImage(selectedFile);
-                        if (url) finalData.profilePic = url;
-                    }
+      <!-- Drag indicator area dropzone -->
+      <div class="cards-list" id="restaurantsList" ondragover="handleDragOverList(event)" ondragleave="handleDragLeaveList(event)" ondrop="handleDropOnRestaurantList(event)">
+        <!-- Restaurants loaded dynamically by database listeners -->
+      </div>
+    </section>
 
-                    const coll = showAddModal === 'director' ? 'directors' : showAddModal === 'coach' ? 'coaches' : 'stores';
-                    if (editTarget?.id) {
-                        await db.collection(coll).doc(editTarget.id).set(finalData, { merge: true });
-                    } else {
-                        const newId = Math.random().toString(36).substr(2, 9);
-                        if (showAddModal === 'director') finalData.order = directors.length;
-                        if (showAddModal === 'coach') finalData.order = coaches.length;
-                        if (showAddModal === 'store') finalData.order = stores.length;
-                        await db.collection(coll).doc(newId).set(finalData);
-                    }
-                    setEditTarget(null);
-                    setShowAddModal(null); setFormData({}); setSelectedFile(null);
-                } catch (err) { console.error(err); } finally { setLoading(false); }
-            };
+  </main>
 
-            const handleStartEdit = (type, record) => {
-                setShowAddModal(type);
-                setEditTarget({ id: record.id });
-                setFormData({
-                    firstName: record.firstName || "",
-                    lastName: record.lastName || "",
-                    phone: (record.phone || "").replace(/\D/g, "").slice(0, 10),
-                    email: record.email || "",
-                    name: record.name || "",
-                    type: record.type || "Fast Food",
-                    streetAddress: record.streetAddress || record.address || "",
-                    city: record.city || "",
-                    zipCode: record.zipCode || "",
-                    storeNumber: record.storeNumber || "",
-                    profilePic: record.profilePic || ""
-                });
-            };
+  <!-- ==================================================================== -->
+  <!-- MODAL FOR CREAT & EDIT FORM DIALOGS                                  -->
+  <!-- ==================================================================== -->
+  <div class="modal-backdrop" id="crudModal">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="modalTitle">Add Item</h3>
+        <button class="modal-close" onclick="closeCrudModal()">&times;</button>
+      </div>
+      
+      <form id="crudForm" onsubmit="handleFormSubmit(event)">
+        <div class="modal-body">
+          <input type="hidden" id="formType">
+          <input type="hidden" id="formId">
 
-            const closeModal = () => {
-                setShowAddModal(null);
-                setEditTarget(null);
-                setFormData({});
-                setSelectedFile(null);
-            };
+          <!-- Shared Name fields -->
+          <div class="form-group" id="groupName">
+            <label for="inputName">Full Name</label>
+            <input type="text" id="inputName" placeholder="e.g. John Doe">
+          </div>
 
-            const reorderList = (items, draggedId, targetId) => {
-                const copy = [...items];
-                const from = copy.findIndex(item => item.id === draggedId);
-                const to = copy.findIndex(item => item.id === targetId);
-                if (from < 0 || to < 0 || from === to) return copy;
-                const [moved] = copy.splice(from, 1);
-                copy.splice(to, 0, moved);
-                return copy.map((item, idx) => ({ ...item, order: idx }));
-            };
+          <!-- Restaurant Specific fields -->
+          <div class="form-group" id="groupStoreNo" style="display: none;">
+            <label for="inputStoreNumber">Store Number</label>
+            <input type="text" id="inputStoreNumber" placeholder="e.g. #01 or BK #27082">
+          </div>
 
-            const handleDropOnItem = (type, targetId) => {
-                if (!dragItem || dragItem.type !== type || !isEditing) return;
-                if (type === 'director') setDirectors(prev => reorderList(prev, dragItem.id, targetId));
-                if (type === 'coach') setCoaches(prev => reorderList(prev, dragItem.id, targetId));
-                setDragItem(null);
-            };
+          <div class="form-group" id="groupStoreName" style="display: none;">
+            <label for="inputStoreName">Store Name</label>
+            <input type="text" id="inputStoreName" placeholder="e.g. Sun Valley or Lewisville">
+          </div>
 
-            const assignStoreToCoach = (storeId, coachId) => {
-                if (!isEditing) return;
-                setStores(prev => prev.map(s => s.id === storeId ? { ...s, coachId } : s));
-                setDragItem(null);
-            };
+          <div class="form-group" id="groupAddress" style="display: none;">
+            <label for="inputAddress">Address</label>
+            <input type="text" id="inputAddress" placeholder="123 Street Dr., Fort Worth, TX 76119">
+          </div>
 
-            const assignCoachToDirector = (coachId, directorId) => {
-                if (!isEditing) return;
-                setCoaches(prev => prev.map(c => c.id === coachId ? { ...c, directorId } : c));
-                setDragItem(null);
-            };
+          <!-- Shared Contact fields -->
+          <div class="form-group" id="groupEmail">
+            <label for="inputEmail">Email Address</label>
+            <input type="email" id="inputEmail" placeholder="e.g. user@dossaniparadise.com">
+          </div>
 
-            const saveChanges = async () => {
-                setLoading(true);
-                const batch = db.batch();
-                directors.forEach((d, index) => {
-                    const orig = originalDirectors.find(od => od.id === d.id);
-                    if ((orig?.order ?? null) !== index) batch.update(db.collection("directors").doc(d.id), { order: index });
-                });
-                coaches.forEach(c => {
-                    const orig = originalCoaches.find(oc => oc.id === c.id);
-                    const patch = {};
-                    if (orig?.directorId !== c.directorId) patch.directorId = c.directorId || null;
-                    if ((orig?.order ?? null) !== (c.order ?? null)) patch.order = c.order ?? null;
-                    if (Object.keys(patch).length) batch.update(db.collection("coaches").doc(c.id), patch);
-                });
-                stores.forEach(s => {
-                    const orig = originalStores.find(os => os.id === s.id);
-                    if (orig?.coachId !== s.coachId) batch.update(db.collection("stores").doc(s.id), { coachId: s.coachId || null });
-                });
-                await batch.commit();
-                setIsEditing(false); setShowDiff(false); setLoading(false);
-            };
+          <div class="form-group" id="groupPhone">
+            <label for="inputPhone">Phone Number</label>
+            <input type="text" id="inputPhone" placeholder="e.g. (817) 555-0199">
+          </div>
 
-            const coachesByDirector = useMemo(() => {
-                const map = {};
-                coaches.forEach((coach) => {
-                    const key = coach.directorId || "unassigned";
-                    if (!map[key]) map[key] = [];
-                    map[key].push(coach);
-                });
-                return map;
-            }, [coaches]);
+          <!-- Form explicit relationships dropdown selector -->
+          <div class="form-group" id="groupAssignedDirector" style="display: none;">
+            <label for="selectAssignedDirector">Assigned Operations Director</label>
+            <select id="selectAssignedDirector">
+              <option value="">-- No Director Assigned --</option>
+              <!-- Populated dynamically -->
+            </select>
+          </div>
 
-            const storesByCoach = useMemo(() => {
-                const map = {};
-                stores.forEach((store) => {
-                    const key = store.coachId || "unassigned";
-                    if (!map[key]) map[key] = [];
-                    map[key].push(store);
-                });
-                return map;
-            }, [stores]);
+          <div class="form-group" id="groupAssignedCoach" style="display: none;">
+            <label for="selectAssignedCoach">Assigned Area Coach</label>
+            <select id="selectAssignedCoach" onchange="syncDirectorFromCoach(this.value)">
+              <option value="">-- Direct Report to Director --</option>
+              <!-- Populated dynamically -->
+            </select>
+          </div>
 
-            const viewCategories = [
-                { key: "C-Store", label: "Convenience Stores" },
-                { key: "Fast Food", label: "Fast Food Restaurants" },
-                { key: "Car Wash", label: "Car Washes" }
-            ];
+        </div>
+        
+        <div class="modal-footer">
+          <button type="button" class="btn" onclick="closeCrudModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary" id="saveButton">Save Changes</button>
+        </div>
+      </form>
+    </div>
+  </div>
 
-            // Simplified UI for Single File Demo
-            return (
-                <div className="min-h-screen p-8">
-                    <header className="flex justify-between items-center mb-8 bg-white p-6 rounded-2xl border border-gray-200">
-                        <div>
-                            <h1 className="text-2xl font-black text-gray-900 uppercase tracking-tight">DPM Area Coach Alignment</h1>
-                            <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mt-1">{isEditing ? 'Editing Mode' : 'View Mode'}</p>
-                        </div>
-                        <div className="flex gap-4">
-                            <input 
-                                placeholder="Search..." 
-                                className="px-4 py-2 bg-gray-100 rounded-xl border-none text-sm"
-                                onChange={(e) => setSearch(e.target.value.toLowerCase())}
-                            />
-                            <button 
-                                onClick={() => isEditing ? saveChanges() : setIsEditing(true)}
-                                className={`px-6 py-2 rounded-xl font-bold text-sm transition-all ${isEditing ? 'bg-indigo-600 text-white' : 'bg-white border border-gray-200'}`}
-                            >
-                                {isEditing ? 'Save Changes' : 'Enter Edit Mode'}
-                            </button>
-                        </div>
-                    </header>
+  <!-- ==================================================================== -->
+  <!-- JAVASCRIPT LOGIC (Firebase setup, drag/drop, list renders, CRUD)     -->
+  <!-- ==================================================================== -->
+  <script>
+    // ==========================================
+    // 1. FIREBASE CONFIGURATION
+    // Paste your Firebase web app config and Realtime Database URL here:
+    // ==========================================
+    const firebaseConfig = {
+      apiKey: "AIzaSyAxW6wajL9PH1Wlw3_QuBXgAMFgYWjkJp8",
+      authDomain: "gen-lang-client-0357067758.firebaseapp.com",
+      projectId: "gen-lang-client-0357067758",
+      storageBucket: "gen-lang-client-0357067758.firebasestorage.app",
+      messagingSenderId: "169864973972",
+      appId: "1:169864973972:web:e68c48e1faaa11e21aae81",
+      // Root default database endpoint:
+      databaseURL: "https://gen-lang-client-0357067758-default-rtdb.firebaseio.com"
+    };
 
-                    {!isEditing && (
-                        <main className="bg-white border-2 border-gray-800 rounded-sm">
-                            <div className="p-6 border-b-2 border-gray-800 text-center">
-                                <h2 className="text-3xl font-black tracking-tight text-indigo-800">DPM</h2>
-                                <p className="text-xl font-semibold tracking-wide text-red-700 uppercase">Dossani Paradise Management</p>
-                                <p className="text-sm font-bold mt-3">Total Locations <span className="ml-3">{stores.length}</span></p>
-                            </div>
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
 
-                            {viewCategories.map((category) => {
-                                const typeStores = stores.filter(s => (s.type || "").toLowerCase() === category.key.toLowerCase());
-                                return (
-                                    <section key={category.key} className="border-b-2 border-gray-800 last:border-b-0">
-                                        <div className="flex items-center justify-between bg-slate-200 border-b border-gray-800 px-3 py-1">
-                                            <h3 className="text-xs font-black uppercase">{category.label}</h3>
-                                            <p className="text-xs font-black">Total # of {category.key === "Fast Food" ? "Restaurants" : category.key === "C-Store" ? "C-Stores" : "Car Washes"} Managed: {typeStores.length}</p>
-                                        </div>
-                                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 p-4">
-                                            {directors.map((director) => (
-                                                <div key={`${category.key}-${director.id}`} className="space-y-3">
-                                                    {((coachesByDirector[director.id] || []).filter(c => (storesByCoach[c.id] || []).some(s => (s.type || "").toLowerCase() === category.key.toLowerCase()))).map((coach) => {
-                                                        const coachStores = (storesByCoach[coach.id] || []).filter(s => (s.type || "").toLowerCase() === category.key.toLowerCase());
-                                                        return (
-                                                            <div key={coach.id} className="text-xs">
-                                                                <div className="flex justify-between bg-slate-300 border border-gray-800 px-2 py-1 font-black">
-                                                                    <span>{coach.firstName} {coach.lastName}</span>
-                                                                    <span>{coachStores.length}</span>
-                                                                </div>
-                                                                <div className="space-y-1 p-1">
-                                                                    {coachStores.map((store) => (
-                                                                        <p key={store.id}>{store.name} {store.storeNumber ? `#${store.storeNumber}` : ""}</p>
-                                                                    ))}
-                                                                </div>
-                                                            </div>
-                                                        );
-                                                    })}
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </section>
-                                );
-                            })}
-                        </main>
-                    )}
+    // ==========================================
+    // 2. STATE DATA CACHE & SELECTION MODEL
+    // ==========================================
+    let directors = {};
+    let areaCoaches = {};
+    let restaurants = {};
 
-                    {isEditing && <main className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                        {/* Directors */}
-                        <section className="space-y-4 bg-indigo-50/30 p-6 rounded-3xl border border-indigo-100/50 max-h-[70vh] overflow-y-auto">
-                            <h2 className="text-[10px] font-black uppercase tracking-widest text-indigo-400 mb-4">Division Directors</h2>
-                            {directors.map(d => (
-                                <div key={d.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 cursor-pointer" draggable={isEditing} onDragStart={() => setDragItem({ type: 'director', id: d.id })} onDragOver={(e) => e.preventDefault()} onDrop={() => dragItem?.type === 'coach' ? assignCoachToDirector(dragItem.id, d.id) : handleDropOnItem('director', d.id)} onClick={() => setDetailModal({ type: 'director', id: d.id })}>
-                                    <div className="flex items-center gap-3">
-                                        <img src={d.profilePic || 'https://via.placeholder.com/150'} className="w-12 h-12 rounded-full object-cover" />
-                                        <div>
-                                            <p className="font-bold text-gray-900">{d.firstName} {d.lastName}</p>
-                                            <p className="text-[10px] text-gray-400 uppercase font-black">{d.phone ? formatPhone(d.phone) : 'No Phone'}</p>
-                                            <p className="text-[10px] text-gray-500">{d.email || 'No Email'}</p>
-                                        </div>
-                                        {isEditing && <button onClick={(e) => { e.stopPropagation(); handleStartEdit('director', d); }} className="mt-3 text-[10px] font-bold uppercase text-indigo-500 hover:text-indigo-700">Edit</button>}
-                                    </div>
-                                    <button onClick={(e) => { e.stopPropagation(); handleStartEdit('director', d); }} className="mt-3 text-[10px] font-bold uppercase text-indigo-500 hover:text-indigo-700">Edit</button>
-                                </div>
-                            ))}
-                            {isEditing && <button onClick={() => { setEditTarget(null); setFormData({}); setSelectedFile(null); setShowAddModal('director'); }} className="w-full py-3 border-2 border-dashed border-indigo-200 rounded-2xl text-indigo-400 font-bold text-xs uppercase hover:bg-white">+</button>}
-                        </section>
+    let selectedDirectorId = null;
+    let selectedCoachId = null;
 
-                        {/* Coaches */}
-                        <section className="space-y-4 bg-purple-50/30 p-6 rounded-3xl border border-purple-100/50 max-h-[70vh] overflow-y-auto">
-                            <h2 className="text-[10px] font-black uppercase tracking-widest text-purple-400 mb-4">Area Coaches</h2>
-                            {coaches.map(c => (
-                                <div key={c.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 bento-card cursor-pointer" draggable={isEditing} onDragStart={() => setDragItem({ type: 'coach', id: c.id })} onDragOver={(e) => e.preventDefault()} onDrop={() => dragItem?.type === 'store' ? assignStoreToCoach(dragItem.id, c.id) : handleDropOnItem('coach', c.id)} onClick={() => setDetailModal({ type: 'coach', id: c.id })}>
-                                    <div className="flex items-center gap-3">
-                                        <img src={c.profilePic || 'https://via.placeholder.com/150'} className="w-10 h-10 rounded-full object-cover" />
-                                        <div>
-                                            <p className="text-sm font-bold text-gray-900">{c.firstName} {c.lastName}</p>
-                                            <p className="text-[9px] text-gray-400 font-bold">{c.phone ? formatPhone(c.phone) : 'No Phone'}</p>
-                                            <p className="text-[10px] text-gray-500">{c.email || 'No Email'}</p>
-                                            <p className="text-[10px] text-purple-500 font-bold mt-1">Stores: {stores.filter(s => s.coachId === c.id).length}</p>
-                                        </div>
-                                        {assignedStores.length > 0 && (
-                                            <div className="mt-3 flex flex-wrap gap-2">
-                                                {assignedStores.slice(0, 8).map(s => (
-                                                    <span key={s.id} className="px-2 py-1 rounded-lg bg-purple-100 text-purple-700 text-[10px] font-bold">{s.name} {s.storeNumber ? `#${s.storeNumber}` : ""}</span>
-                                                ))}
-                                            </div>
-                                        )}
-                                        {isEditing && <button onClick={(e) => { e.stopPropagation(); handleStartEdit('coach', c); }} className="mt-3 text-[10px] font-bold uppercase text-purple-500 hover:text-purple-700">Edit</button>}
-                                    </div>
-                                    <button onClick={(e) => { e.stopPropagation(); handleStartEdit('coach', c); }} className="mt-3 text-[10px] font-bold uppercase text-purple-500 hover:text-purple-700">Edit</button>
-                                </div>
-                            ))}
-                            {isEditing && <button onClick={() => { setEditTarget(null); setFormData({}); setSelectedFile(null); setShowAddModal('coach'); }} className="w-full py-3 border-2 border-dashed border-purple-200 rounded-2xl text-purple-400 font-bold text-xs uppercase hover:bg-white">+</button>}
-                        </section>
+    // Monitor Firebase Connection Status
+    db.ref(".info/connected").on("value", function(snap) {
+      const statusDiv = document.getElementById("connectionStatus");
+      const statusText = document.getElementById("statusText");
+      if (snap.val() === true) {
+        statusDiv.className = "status-badge online";
+        statusText.innerText = "Syncing Realtime";
+      } else {
+        statusDiv.className = "status-badge";
+        statusText.innerText = "Offline";
+      }
+    });
 
-                        {/* Stores */}
-                        <section className="space-y-4 bg-emerald-50/30 p-6 rounded-3xl border border-emerald-100/50 max-h-[70vh] overflow-y-auto">
-                            <div className="flex justify-between items-center mb-4">
-                                <h2 className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Managed Stores</h2>
-                                {isEditing && <button onClick={() => setShowImportModal(true)} className="px-3 py-2 rounded-lg border border-emerald-200 text-[10px] font-bold uppercase text-emerald-600 hover:bg-white">Mass Import</button>}
-                            </div>
-                            {stores.map(s => (
-                                <div key={s.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 bento-card" draggable={isEditing} onDragStart={() => setDragItem({ type: 'store', id: s.id })}>
-                                    <p className="text-sm font-bold text-gray-900">{s.name}</p>
-                                    <p className="text-[10px] text-emerald-500 font-bold mt-1">Type: {s.type || "N/A"}</p>
-                                    <p className="text-[10px] text-emerald-700 font-bold mt-1">Store #: {s.storeNumber || 'N/A'}</p>
-                                    <p className="text-[10px] text-emerald-600 font-bold italic opacity-70 mt-1">{s.streetAddress || s.address}, {s.city} {s.zipCode}</p>
-                                    <p className="text-[10px] text-gray-500 mt-1">Phone: {s.phone ? formatPhone(s.phone) : "No Phone"}</p>
-                                    <p className="text-[10px] text-gray-500 mt-1">Coach: {coaches.find(c => c.id === s.coachId)?.firstName || 'Unassigned'}</p>
-                                    <button onClick={() => handleStartEdit('store', s)} className="mt-3 text-[10px] font-bold uppercase text-emerald-500 hover:text-emerald-700">Edit</button>
-                                </div>
-                            ))}
-                            {isEditing && <button onClick={() => { setEditTarget(null); setFormData({}); setSelectedFile(null); setShowAddModal('store'); }} className="w-full py-3 border-2 border-dashed border-emerald-200 rounded-2xl text-emerald-400 font-bold text-xs uppercase hover:bg-white">+</button>}
-                        </section>
-                    </main>}
+    // ==========================================
+    // 3. LISTEN TO FLAT FIREBASE PATHS (INSTANT UPDATES)
+    // ==========================================
+    db.ref("directors").on("value", (snapshot) => {
+      directors = snapshot.val() || {};
+      renderAll();
+      updateRelationshipDropdowns();
+    });
 
-                    {/* Simple Add Modal */}
-                    {showAddModal && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
-                            <div className="bg-white p-8 rounded-3xl w-full max-w-md">
-                                <h3 className="text-xl font-bold mb-4 uppercase">{editTarget ? `Edit ${showAddModal}` : `New ${showAddModal}`}</h3>
-                                <form onSubmit={handleAdd} className="space-y-4">
-                                    {showAddModal !== 'store' && (
-                                        <>
-                                            <input placeholder="First Name" required className="w-full p-3 bg-gray-100 rounded-xl" value={formData.firstName || ""} onChange={e => setFormData({...formData, firstName: e.target.value})} />
-                                            <input placeholder="Last Name" required className="w-full p-3 bg-gray-100 rounded-xl" value={formData.lastName || ""} onChange={e => setFormData({...formData, lastName: e.target.value})} />
-                                            <input placeholder="Phone" className="w-full p-3 bg-gray-100 rounded-xl" value={formatPhone(formData.phone || "")} onChange={e => setFormData({...formData, phone: e.target.value.replace(/\D/g, "").slice(0, 10)})} />
-                                        </>
-                                    )}
-                                    {(showAddModal === 'director' || showAddModal === 'coach') && (
-                                        <input type="email" placeholder="Email Address" className="w-full p-3 bg-gray-100 rounded-xl" value={formData.email || ""} onChange={e => setFormData({...formData, email: e.target.value})} />
-                                    )}
-                                    {showAddModal === 'store' && (
-                                        <>
-                                            <select className="w-full p-3 bg-gray-100 rounded-xl" value={formData.type || "Fast Food"} onChange={e => setFormData({...formData, type: e.target.value})}>
-                                                {STORE_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
-                                            </select>
-                                            <select required className="w-full p-3 bg-gray-100 rounded-xl" value={formData.name || ""} onChange={e => setFormData({...formData, name: e.target.value})}>
-                                                <option value="">Select Store Name</option>
-                                                {STORE_NAMES.map(n => <option key={n} value={n}>{n}</option>)}
-                                            </select>
-                                            <input placeholder="Store Number" className="w-full p-3 bg-gray-100 rounded-xl" value={formData.storeNumber || ""} onChange={e => setFormData({...formData, storeNumber: e.target.value})} />
-                                            <input placeholder="Street Address" required className="w-full p-3 bg-gray-100 rounded-xl" value={formData.streetAddress || ""} onChange={e => setFormData({...formData, streetAddress: e.target.value})} />
-                                            <input placeholder="City" required className="w-full p-3 bg-gray-100 rounded-xl" value={formData.city || ""} onChange={e => setFormData({...formData, city: e.target.value})} />
-                                            <input placeholder="Zip Code" required className="w-full p-3 bg-gray-100 rounded-xl" value={formData.zipCode || ""} onChange={e => setFormData({...formData, zipCode: e.target.value})} />
-                                            <input placeholder="Phone" className="w-full p-3 bg-gray-100 rounded-xl" value={formatPhone(formData.phone || "")} onChange={e => setFormData({...formData, phone: e.target.value.replace(/\D/g, "").slice(0, 10)})} />
-                                        </>
-                                    )}
-                                    {showAddModal !== 'store' && <input type="file" className="text-xs" onChange={e => setSelectedFile(e.target.files[0])} />}
-                                    <button className="w-full py-4 bg-indigo-600 text-white font-bold rounded-xl shadow-lg">{editTarget ? "Save Changes" : "Create"}</button>
-                                    <button type="button" onClick={closeModal} className="w-full text-gray-400 font-bold uppercase text-[10px]">Cancel</button>
-                                </form>
-                            </div>
-                        </div>
-                    )}
+    db.ref("areaCoaches").on("value", (snapshot) => {
+      areaCoaches = snapshot.val() || {};
+      renderAll();
+      updateRelationshipDropdowns();
+    });
 
-                    {detailModal && (
-                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/50">
-                            <div className="bg-white p-8 rounded-3xl w-full max-w-lg">
-                                {detailModal.type === 'director' && (
-                                    <>
-                                        <h3 className="text-xl font-bold mb-4 uppercase">Director Team</h3>
-                                        <div className="space-y-2">
-                                            {coaches.filter(c => c.directorId === detailModal.id).map(c => (
-                                                <div key={c.id} className="p-3 rounded-xl bg-indigo-50">
-                                                    <p className="font-bold text-sm">{c.firstName} {c.lastName}</p>
-                                                    <p className="text-xs text-gray-500">{c.email || "No Email"} • {c.phone ? formatPhone(c.phone) : "No Phone"}</p>
-                                                </div>
-                                            ))}
-                                            {!coaches.filter(c => c.directorId === detailModal.id).length && <p className="text-sm text-gray-400">No area coaches assigned.</p>}
-                                        </div>
-                                    </>
-                                )}
-                                {detailModal.type === 'coach' && (
-                                    <>
-                                        <h3 className="text-xl font-bold mb-4 uppercase">Coach Stores</h3>
-                                        <div className="space-y-2">
-                                            {stores.filter(s => s.coachId === detailModal.id).map(s => (
-                                                <div key={s.id} className="p-3 rounded-xl bg-purple-50">
-                                                    <p className="font-bold text-sm">{s.name} {s.storeNumber ? ` ${s.storeNumber}` : ""}</p>
-                                                </div>
-                                            ))}
-                                            {!stores.filter(s => s.coachId === detailModal.id).length && <p className="text-sm text-gray-400">No stores assigned.</p>}
-                                        </div>
-                                    </>
-                                )}
-                                <button type="button" onClick={() => setDetailModal(null)} className="w-full mt-6 text-gray-500 font-bold uppercase text-xs">Close</button>
-                            </div>
-                        </div>
-                    )}
-                </div>
-            );
+    db.ref("restaurants").on("value", (snapshot) => {
+      restaurants = snapshot.val() || {};
+      renderAll();
+    });
+
+    // ==========================================
+    // 4. RENDERING ROUTINES FOR THE 3 VIEWS
+    // ==========================================
+    function renderAll() {
+      renderDirectors();
+      renderCoaches();
+      renderRestaurants();
+    }
+
+    // Render operations column
+    function renderDirectors() {
+      const listDiv = document.getElementById("directorsList");
+      const countSpan = document.getElementById("directorCount");
+      const keys = Object.keys(directors);
+      
+      countSpan.innerText = keys.length;
+      listDiv.innerHTML = "";
+
+      if (keys.length === 0) {
+        listDiv.innerHTML = `<div class="card" style="text-align: center; color: var(--text-muted);">No Directors. Click + Add</div>`;
+        return;
+      }
+
+      keys.forEach((dirId) => {
+        const dir = directors[dirId];
+        const isSelected = selectedDirectorId === dirId;
+        
+        const card = document.createElement("div");
+        card.className = `card ${isSelected ? 'selected' : ''}`;
+        card.setAttribute("data-id", dirId);
+        card.setAttribute("data-type", "director");
+        
+        // Directors are not draggable, but they are a valid dropzone for coach and direct reports
+        card.addEventListener("click", () => selectDirector(dirId));
+        card.addEventListener("dragover", handleDragOverCard);
+        card.addEventListener("dragleave", handleDragLeaveCard);
+        card.addEventListener("drop", handleDropOnDirectorCard);
+
+        card.innerHTML = `
+          <div class="card-header-row">
+            <div class="card-title">${escapeHtml(dir.name)}</div>
+            <div class="card-actions">
+              <button class="btn btn-icon btn-icon-edit" onclick="event.stopPropagation(); openEditModal('director', '${dirId}')">✎</button>
+              <button class="btn btn-icon btn-icon-delete" onclick="event.stopPropagation(); deleteEntry('director', '${dirId}')">✕</button>
+            </div>
+          </div>
+          <div class="card-detail">✉ ${escapeHtml(dir.email || 'No email')}</div>
+          <div class="card-detail">☎ ${escapeHtml(dir.phone || 'No phone')}</div>
+        `;
+        listDiv.appendChild(card);
+      });
+
+      // Update Filter Bar Display
+      const filterBar = document.getElementById("directorFilterBar");
+      if (selectedDirectorId) {
+        filterBar.style.display = "flex";
+      } else {
+        filterBar.style.display = "none";
+      }
+    }
+
+    // Render area coaches column
+    function renderCoaches() {
+      const listDiv = document.getElementById("coachesList");
+      const countSpan = document.getElementById("coachCount");
+      let keys = Object.keys(areaCoaches);
+      
+      countSpan.innerText = keys.length;
+      listDiv.innerHTML = "";
+
+      // Filtering by active selection
+      if (selectedDirectorId) {
+        keys = keys.filter(id => areaCoaches[id].assignedDirectorId === selectedDirectorId);
+      }
+
+      if (keys.length === 0) {
+        listDiv.innerHTML = `<div class="card" style="text-align: center; color: var(--text-muted); pointer-events: none;">No Area Coaches matched.</div>`;
+        return;
+      }
+
+      keys.forEach((coachId) => {
+        const coach = areaCoaches[coachId];
+        const isSelected = selectedCoachId === coachId;
+        const dirName = coach.assignedDirectorId && directors[coach.assignedDirectorId] ? directors[coach.assignedDirectorId].name : null;
+
+        const card = document.createElement("div");
+        card.className = `card ${isSelected ? 'selected' : ''}`;
+        card.setAttribute("draggable", "true");
+        card.setAttribute("data-id", coachId);
+        card.setAttribute("data-type", "coach");
+
+        // Click to filter by coach
+        card.addEventListener("click", () => selectCoach(coachId));
+        
+        // Native HTML5 Drag events
+        card.addEventListener("dragstart", handleDragStart);
+        card.addEventListener("dragend", handleDragEnd);
+
+        // Coach is droppable for Restaurants
+        card.addEventListener("dragover", handleDragOverCard);
+        card.addEventListener("dragleave", handleDragLeaveCard);
+        card.addEventListener("drop", handleDropOnCoachCard);
+
+        card.innerHTML = `
+          <div class="card-header-row">
+            <div class="card-title">${escapeHtml(coach.name)}</div>
+            <div class="card-actions">
+              <button class="btn btn-icon btn-icon-edit" onclick="event.stopPropagation(); openEditModal('coach', '${coachId}')">✎</button>
+              <button class="btn btn-icon btn-icon-delete" onclick="event.stopPropagation(); deleteEntry('coach', '${coachId}')">✕</button>
+            </div>
+          </div>
+          <div class="card-detail">✉ ${escapeHtml(coach.email || 'No email')}</div>
+          <div class="card-detail">☎ ${escapeHtml(coach.phone || 'No phone')}</div>
+          <div class="assignment-tags">
+            ${dirName ? `<span class="relation-badge badge-director">Director: ${escapeHtml(dirName)}</span>` : '<span class="relation-badge badge-unassigned">No Director</span>'}
+          </div>
+        `;
+        listDiv.appendChild(card);
+      });
+    }
+
+    // Render restaurants column
+    function renderRestaurants() {
+      const listDiv = document.getElementById("restaurantsList");
+      const countSpan = document.getElementById("restaurantCount");
+      let keys = Object.keys(restaurants);
+
+      countSpan.innerText = keys.length;
+      listDiv.innerHTML = "";
+
+      // Filter state logic
+      if (selectedCoachId) {
+        // Filter by specific coach
+        keys = keys.filter(id => restaurants[id].assignedAreaCoachId === selectedCoachId);
+        renderRestaurantListPlain(keys, listDiv);
+      } else if (selectedDirectorId) {
+        // Filter by Director: show group splits: Directreports vs Coachreports
+        const directReportKeys = keys.filter(id => restaurants[id].assignedDirectorId === selectedDirectorId && !restaurants[id].assignedAreaCoachId);
+        const coachReportKeys = keys.filter(id => restaurants[id].assignedDirectorId === selectedDirectorId && restaurants[id].assignedAreaCoachId);
+
+        if (directReportKeys.length === 0 && coachReportKeys.length === 0) {
+          listDiv.innerHTML = `<div class="card" style="text-align: center; color: var(--text-muted); pointer-events: none;">No Restaurants structured under this Director.</div>`;
+          return;
         }
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
+        if (directReportKeys.length > 0) {
+          const header = document.createElement("div");
+          header.className = "group-divider";
+          header.innerText = "Direct Reports";
+          listDiv.appendChild(header);
+          renderRestaurantListPlain(directReportKeys, listDiv);
+        }
+
+        if (coachReportKeys.length > 0) {
+          const header = document.createElement("div");
+          header.className = "group-divider";
+          header.innerText = "Coach Reports";
+          listDiv.appendChild(header);
+          renderRestaurantListPlain(coachReportKeys, listDiv);
+        }
+      } else {
+        // Render raw list if no active filters
+        renderRestaurantListPlain(keys, listDiv);
+      }
+    }
+
+    function renderRestaurantListPlain(keys, parentContainer) {
+      if (keys.length === 0) {
+        const dummy = document.createElement("div");
+        dummy.className = "card";
+        dummy.style.textAlign = "center";
+        dummy.style.color = "var(--text-muted)";
+        dummy.style.pointerEvents = "none";
+        dummy.innerText = "No assigned restaurants.";
+        parentContainer.appendChild(dummy);
+        return;
+      }
+
+      keys.forEach((restId) => {
+        const rest = restaurants[restId];
+        const coachName = rest.assignedAreaCoachId && areaCoaches[rest.assignedAreaCoachId] ? areaCoaches[rest.assignedAreaCoachId].name : null;
+        const dirName = rest.assignedDirectorId && directors[rest.assignedDirectorId] ? directors[rest.assignedDirectorId].name : null;
+
+        const card = document.createElement("div");
+        card.className = "card";
+        card.setAttribute("draggable", "true");
+        card.setAttribute("data-id", restId);
+        card.setAttribute("data-type", "restaurant");
+
+        // Drag handlers
+        card.addEventListener("dragstart", handleDragStart);
+        card.addEventListener("dragend", handleDragEnd);
+
+        card.innerHTML = `
+          <div class="card-header-row">
+            <div class="card-title">
+              <span class="store-badge">${escapeHtml(rest.storeNumber || '#')}</span>
+              ${escapeHtml(rest.storeName)}
+            </div>
+            <div class="card-actions">
+              <button class="btn btn-icon btn-icon-edit" onclick="openEditModal('restaurant', '${restId}')">✎</button>
+              <button class="btn btn-icon btn-icon-delete" onclick="deleteEntry('restaurant', '${restId}')">✕</button>
+            </div>
+          </div>
+          <div class="card-detail">📍 ${escapeHtml(rest.address || 'No address')}</div>
+          <div class="card-detail">☎ ${escapeHtml(rest.phone || 'No phone')}</div>
+          <div class="assignment-tags">
+            ${dirName ? `<span class="relation-badge badge-director">Dir: ${escapeHtml(dirName)}</span>` : ''}
+            ${coachName ? `<span class="relation-badge badge-coach">Coach: ${escapeHtml(coachName)}</span>` : '<span class="relation-badge badge-unassigned">Direct Report</span>'}
+          </div>
+        `;
+        parentContainer.appendChild(card);
+      });
+    }
+
+    // ==========================================
+    // 5. DRAG AND DROP HANDLERS (NATIVE HTML5)
+    // ==========================================
+    let draggedElementData = null;
+
+    function handleDragStart(e) {
+      const type = e.target.getAttribute("data-type");
+      const id = e.target.getAttribute("data-id");
+      
+      draggedElementData = { type, id };
+      e.target.classList.add("dragging");
+      
+      // Drag effect parameter
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", JSON.stringify(draggedElementData));
+    }
+
+    function handleDragEnd(e) {
+      e.target.classList.remove("dragging");
+      draggedElementData = null;
+    }
+
+    // Custom over visual state on target elements
+    function handleDragOverCard(e) {
+      e.preventDefault();
+      const targetType = e.currentTarget.getAttribute("data-type");
+      
+      if (!draggedElementData) return;
+
+      // Filter drops that make logical sense:
+      // 1. Coach can only drop on Director
+      if (draggedElementData.type === 'coach' && targetType === 'director') {
+        e.currentTarget.classList.add("drag-hover-target");
+      }
+      // 2. Restaurant can drop on Director or Coach
+      if (draggedElementData.type === 'restaurant' && (targetType === 'director' || targetType === 'coach')) {
+        e.currentTarget.classList.add("drag-hover-target");
+      }
+    }
+
+    function handleDragLeaveCard(e) {
+      e.currentTarget.classList.remove("drag-hover-target");
+    }
+
+    // LIST PANEL BACKGROUND DROPS (Dropping onto empty lists allows assignment reset)
+    function handleDragOverList(e) {
+      e.preventDefault();
+      e.currentTarget.classList.add("drag-hover");
+    }
+
+    function handleDragLeaveList(e) {
+      e.currentTarget.classList.remove("drag-hover");
+    }
+
+    // DROP: Coach dropped on a Director card
+    function handleDropOnDirectorCard(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.currentTarget.classList.remove("drag-hover-target");
+
+      if (!draggedElementData) return;
+      const targetDirectorId = e.currentTarget.getAttribute("data-id");
+
+      // 1. Coach onto Director
+      if (draggedElementData.type === "coach") {
+        db.ref(`areaCoaches/${draggedElementData.id}`).update({
+          assignedDirectorId: targetDirectorId
+        });
+      }
+      
+      // 2. Restaurant onto Director (becomes a Direct reports to that director)
+      if (draggedElementData.type === "restaurant") {
+        db.ref(`restaurants/${draggedElementData.id}`).update({
+          assignedAreaCoachId: "",
+          assignedDirectorId: targetDirectorId
+        });
+      }
+    }
+
+    // DROP: Restaurant dropped on a Coach card
+    function handleDropOnCoachCard(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.currentTarget.classList.remove("drag-hover-target");
+
+      if (!draggedElementData) return;
+      const targetCoachId = e.currentTarget.getAttribute("data-id");
+      const coach = areaCoaches[targetCoachId];
+
+      if (draggedElementData.type === "restaurant" && coach) {
+        db.ref(`restaurants/${draggedElementData.id}`).update({
+          assignedAreaCoachId: targetCoachId,
+          assignedDirectorId: coach.assignedDirectorId || ""
+        });
+      }
+    }
+
+    // DROP: dropping Coach onto empty layout space to clear their assigned Director
+    function handleDropOnCoachList(e) {
+      e.preventDefault();
+      e.currentTarget.classList.remove("drag-hover");
+
+      if (draggedElementData && draggedElementData.type === "coach") {
+        db.ref(`areaCoaches/${draggedElementData.id}`).update({
+          assignedDirectorId: ""
+        });
+      }
+    }
+
+    // DROP: dropping Restaurant onto empty layout space to clear both coach and director
+    function handleDropOnRestaurantList(e) {
+      e.preventDefault();
+      e.currentTarget.classList.remove("drag-hover");
+
+      if (draggedElementData && draggedElementData.type === "restaurant") {
+        db.ref(`restaurants/${draggedElementData.id}`).update({
+          assignedAreaCoachId: "",
+          assignedDirectorId: ""
+        });
+      }
+    }
+
+    // ==========================================
+    // 6. SELECTION FILTERS ACTIONS
+    // ==========================================
+    function selectDirector(id) {
+      if (selectedDirectorId === id) {
+        // Toggle selection
+        selectedDirectorId = null;
+        selectedCoachId = null;
+      } else {
+        selectedDirectorId = id;
+        selectedCoachId = null; // reset sub coach
+      }
+      renderAll();
+    }
+
+    function selectCoach(id) {
+      if (selectedCoachId === id) {
+        // Toggle selection
+        selectedCoachId = null;
+      } else {
+        selectedCoachId = id;
+      }
+      renderAll();
+    }
+
+    function clearFilters() {
+      selectedDirectorId = null;
+      selectedCoachId = null;
+      renderAll();
+    }
+
+    // ==========================================
+    // 7. CRUD MODAL OPERATIONS
+    // ==========================================
+    function openCreateModal(type) {
+      document.getElementById("crudForm").reset();
+      document.getElementById("formType").value = type;
+      document.getElementById("formId").value = "";
+      document.getElementById("modalTitle").innerText = `Add New ${capitalize(type)}`;
+      
+      setupFormFields(type);
+      document.getElementById("crudModal").classList.add("active");
+    }
+
+    function openEditModal(type, id) {
+      document.getElementById("crudForm").reset();
+      document.getElementById("formType").value = type;
+      document.getElementById("formId").value = id;
+      document.getElementById("modalTitle").innerText = `Edit ${capitalize(type)}`;
+      
+      setupFormFields(type);
+
+      // Populate Form inputs
+      if (type === "director") {
+        const item = directors[id];
+        document.getElementById("inputName").value = item.name || "";
+        document.getElementById("inputEmail").value = item.email || "";
+        document.getElementById("inputPhone").value = item.phone || "";
+      } else if (type === "coach") {
+        const item = areaCoaches[id];
+        document.getElementById("inputName").value = item.name || "";
+        document.getElementById("inputEmail").value = item.email || "";
+        document.getElementById("inputPhone").value = item.phone || "";
+        document.getElementById("selectAssignedDirector").value = item.assignedDirectorId || "";
+      } else if (type === "restaurant") {
+        const item = restaurants[id];
+        document.getElementById("inputStoreNumber").value = item.storeNumber || "";
+        document.getElementById("inputStoreName").value = item.storeName || "";
+        document.getElementById("inputAddress").value = item.address || "";
+        document.getElementById("inputEmail").value = item.email || "";
+        document.getElementById("inputPhone").value = item.phone || "";
+        document.getElementById("selectAssignedCoach").value = item.assignedAreaCoachId || "";
+        document.getElementById("selectAssignedDirector").value = item.assignedDirectorId || "";
+      }
+
+      document.getElementById("crudModal").classList.add("active");
+    }
+
+    function closeCrudModal() {
+      document.getElementById("crudModal").classList.remove("active");
+    }
+
+    function setupFormFields(type) {
+      // Toggle inputs
+      document.getElementById("groupName").style.display = type !== "restaurant" ? "block" : "none";
+      document.getElementById("groupStoreNo").style.display = type === "restaurant" ? "block" : "none";
+      document.getElementById("groupStoreName").style.display = type === "restaurant" ? "block" : "none";
+      document.getElementById("groupAddress").style.display = type === "restaurant" ? "block" : "none";
+      
+      document.getElementById("groupAssignedDirector").style.display = type !== "director" ? "block" : "none";
+      document.getElementById("groupAssignedCoach").style.display = type === "restaurant" ? "block" : "none";
+    }
+
+    // Dynamic select inputs helpers
+    function updateRelationshipDropdowns() {
+      const selectDir = document.getElementById("selectAssignedDirector");
+      const selectCoach = document.getElementById("selectAssignedCoach");
+
+      // Save user selected values temporarily
+      const prevDir = selectDir.value;
+      const prevCoach = selectCoach.value;
+
+      selectDir.innerHTML = `<option value="">-- No Director Assigned --</option>`;
+      Object.keys(directors).forEach(id => {
+        selectDir.innerHTML += `<option value="${id}">${escapeHtml(directors[id].name)}</option>`;
+      });
+
+      selectCoach.innerHTML = `<option value="">-- Direct Report to Director --</option>`;
+      Object.keys(areaCoaches).forEach(id => {
+        const dirText = areaCoaches[id].assignedDirectorId && directors[areaCoaches[id].assignedDirectorId] ? ` (${directors[areaCoaches[id].assignedDirectorId].name})` : '';
+        selectCoach.innerHTML += `<option value="${id}">${escapeHtml(areaCoaches[id].name)}${escapeHtml(dirText)}</option>`;
+      });
+
+      // Restore selections
+      selectDir.value = prevDir;
+      selectCoach.value = prevCoach;
+    }
+
+    // Cascade director assignment if coach changes in manual edit dialog
+    function syncDirectorFromCoach(coachId) {
+      if (coachId && areaCoaches[coachId]) {
+        const coach = areaCoaches[coachId];
+        document.getElementById("selectAssignedDirector").value = coach.assignedDirectorId || "";
+      }
+    }
+
+    // Form Submission Actions
+    function handleFormSubmit(e) {
+      e.preventDefault();
+      
+      const type = document.getElementById("formType").value;
+      const id = document.getElementById("formId").value || db.ref(type === "director" ? "directors" : type === "coach" ? "areaCoaches" : "restaurants").push().key;
+
+      const updates = {};
+      
+      if (type === "director") {
+        updates[`directors/${id}`] = {
+          id: id,
+          name: document.getElementById("inputName").value,
+          email: document.getElementById("inputEmail").value,
+          phone: document.getElementById("inputPhone").value
+        };
+      } else if (type === "coach") {
+        updates[`areaCoaches/${id}`] = {
+          id: id,
+          name: document.getElementById("inputName").value,
+          email: document.getElementById("inputEmail").value,
+          phone: document.getElementById("inputPhone").value,
+          assignedDirectorId: document.getElementById("selectAssignedDirector").value
+        };
+      } else if (type === "restaurant") {
+        updates[`restaurants/${id}`] = {
+          id: id,
+          storeNumber: document.getElementById("inputStoreNumber").value,
+          storeName: document.getElementById("inputStoreName").value,
+          address: document.getElementById("inputAddress").value,
+          phone: document.getElementById("inputPhone").value,
+          assignedAreaCoachId: document.getElementById("selectAssignedCoach").value,
+          assignedDirectorId: document.getElementById("selectAssignedDirector").value
+        };
+      }
+
+      // Write direct to database
+      db.ref().update(updates, (err) => {
+        if (err) {
+          alert(`Error saving information: ${err.message}`);
+        } else {
+          closeCrudModal();
+        }
+      });
+    }
+
+    // Delete elements
+    function deleteEntry(type, id) {
+      const paths = {
+        'director': 'directors',
+        'coach': 'areaCoaches',
+        'restaurant': 'restaurants'
+      };
+
+      if (confirm(`Are you absolutely sure you want to remove this ${type}? It will sever current branch dependencies.`)) {
+        db.ref(`${paths[type]}/${id}`).remove(() => {
+          // If deleted node was active selection, reset filters safely
+          if (type === 'director' && selectedDirectorId === id) selectedDirectorId = null;
+          if (type === 'coach' && selectedCoachId === id) selectedCoachId = null;
+          renderAll();
+        });
+      }
+    }
+
+    // ==========================================
+    // 8. DATABASE SEED DATA UTILITY FUNCTION
+    // ==========================================
+    function seedDatabase() {
+      if (!confirm("This will clean and prepopulate database structure with standard demo entries. Continue?")) {
+        return;
+      }
+
+      // Initial clean seeds
+      const demoData = {
+        directors: {
+          "dir_rick": { id: "dir_rick", name: "Rick Tharani", email: "rick@dossaniparadise.com", phone: "(817) 555-0101" },
+          "dir_paul": { id: "dir_paul", name: "Paul Fernandez", email: "paul@dossaniparadise.com", phone: "(817) 555-0102" }
+        },
+        areaCoaches: {
+          "coach_jennifer": { id: "coach_jennifer", name: "Jennifer Sanders", email: "jennifer@dossaniparadise.com", phone: "(817) 555-0201", assignedDirectorId: "dir_rick" },
+          "coach_vishal": { id: "coach_vishal", name: "Vishal Chhetri", email: "vishal@dossaniparadise.com", phone: "(817) 555-0202", assignedDirectorId: "dir_rick" },
+          "coach_pedro": { id: "coach_pedro", name: "Pedro Alcantar", email: "pedro@dossaniparadise.com", phone: "(214) 555-0203", assignedDirectorId: "dir_paul" },
+          "coach_waleska": { id: "coach_waleska", name: "Waleska Rios", email: "waleska@dossaniparadise.com", phone: "(214) 555-0204", assignedDirectorId: "dir_paul" }
+        },
+        restaurants: {
+          "store_01": { id: "store_01", storeNumber: "QS #01", storeName: "Paradise QS - Sun Valley", address: "5401 Sun Valley Dr., Fort Worth, TX 76119", phone: "(817) 555-9001", assignedAreaCoachId: "coach_jennifer", assignedDirectorId: "dir_rick" },
+          "store_02": { id: "store_02", storeNumber: "QS #02", storeName: "Paradise QS - Lewisville", address: "521 E. Hwy 121, Lewisville, TX 75057", phone: "(972) 555-9002", assignedAreaCoachId: "coach_jennifer", assignedDirectorId: "dir_rick" },
+          "store_03": { id: "store_03", storeNumber: "QS #04", storeName: "Paradise QS - Alvord", address: "8417 N. US Hwy 287, Alvord, TX 76225", phone: "(940) 555-9003", assignedAreaCoachId: "coach_vishal", assignedDirectorId: "dir_rick" },
+          "store_04": { id: "store_04", storeNumber: "QS #05", storeName: "Paradise QS - Hope", address: "901 W. 3rd St., Hope, AR 71801", phone: "(870) 555-9004", assignedAreaCoachId: "", assignedDirectorId: "dir_rick" },
+          "store_05": { id: "store_05", storeNumber: "BK #27082", storeName: "Burger King Alliance", address: "15933 North Freeway, Fort Worth, TX 76177", phone: "(817) 555-4001", assignedAreaCoachId: "coach_pedro", assignedDirectorId: "dir_paul" },
+          "store_06": { id: "store_06", storeNumber: "BK #22027", storeName: "Burger King Alvord", address: "8417 N.US Hwy 287, Alvord, TX 76225", phone: "(940) 555-4002", assignedAreaCoachId: "coach_waleska", assignedDirectorId: "dir_paul" }
+        }
+      };
+
+      db.ref("/").set(demoData, (err) => {
+        if (err) {
+          alert(`Failed to seed: ${err.message}`);
+        } else {
+          alert("Database seeded successfully with dummy datasets.");
+          clearFilters();
+        }
+      });
+    }
+
+    // ==========================================
+    // 9. STRING & CHARACTER UTILITIES
+    // ==========================================
+    function escapeHtml(str) {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function capitalize(str) {
+      if (!str) return '';
+      return str.charAt(0).toUpperCase() + str.slice(1);
+    }
+  </script>
 </body>
 </html>
