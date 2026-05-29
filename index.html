@@ -17,19 +17,20 @@
   <style>
     /* Reset & CSS variables */
     :root {
-      --primary-color: #0d6efd;
-      --primary-dark: #0b5ed7;
-      --success-color: #198754;
-      --danger-color: #dc3545;
-      --warning-color: #ffc107;
-      --neutral-light: #f8f9fa;
-      --neutral-border: #dee2e6;
-      --text-dark: #212529;
-      --text-muted: #6c757d;
+      --primary-color: #2563eb;
+      --primary-dark: #1d4ed8;
+      --success-color: #16a34a;
+      --success-dark: #15803d;
+      --danger-color: #dc2626;
+      --warning-color: #ca8a04;
+      --neutral-light: #f8fafc;
+      --neutral-border: #e2e8f0;
+      --text-dark: #0f172a;
+      --text-muted: #64748b;
       --bg-white: #ffffff;
-      --shadow-sm: 0 1px 3px rgba(0,0,0,0.1);
-      --shadow-md: 0 4px 6px rgba(0,0,0,0.05);
-      --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      --shadow-sm: 0 1px 3px rgba(0,0,0,0.05);
+      --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.05), 0 2px 4px -1px rgba(0,0,0,0.03);
+      --font-sans: system-ui, -apple-system, sans-serif;
     }
 
     * {
@@ -41,7 +42,7 @@
     body {
       font-family: var(--font-sans);
       color: var(--text-dark);
-      background-color: #f1f3f5;
+      background-color: #f1f5f9;
       line-height: 1.5;
       padding-bottom: 60px;
     }
@@ -49,7 +50,7 @@
     /* Core Layout */
     header {
       background-color: var(--bg-white);
-      border-bottom: 1px grid var(--neutral-border);
+      border-bottom: 1px solid var(--neutral-border);
       padding: 15px 30px;
       box-shadow: var(--shadow-sm);
       display: flex;
@@ -70,7 +71,7 @@
       font-size: 1.25rem;
       font-weight: 700;
       letter-spacing: -0.025em;
-      color: #1e293b;
+      color: #0f172a;
     }
 
     .header-logo span {
@@ -372,6 +373,17 @@
       border-color: var(--primary-dark);
     }
 
+    .btn-success {
+      background-color: var(--success-color);
+      color: var(--bg-white);
+      border-color: var(--success-color);
+    }
+
+    .btn-success:hover {
+      background-color: var(--success-dark);
+      border-color: var(--success-dark);
+    }
+
     .btn-icon {
       padding: 4px;
       font-size: 0.75rem;
@@ -492,7 +504,7 @@
     .form-group input:focus, .form-group select:focus {
       outline: none;
       border-color: var(--primary-color);
-      box-shadow: 0 0 0 3px rgba(13, 110, 253, 0.15);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
     }
 
     .modal-footer {
@@ -513,7 +525,7 @@
   <header>
     <div class="header-logo">
       <h1>Dossani Central Store Manager</h1>
-      <span>v2.1 Single Source of Truth</span>
+      <span>v2.2 Dynamic Importer</span>
     </div>
     
     <div class="header-actions">
@@ -577,7 +589,10 @@
           Restaurants
           <span class="column-counter" id="restaurantCount">0</span>
         </div>
-        <button class="btn btn-primary btn-xs" onclick="openCreateModal('restaurant')">+ Add</button>
+        <div style="display: flex;">
+          <button class="btn btn-primary btn-xs" onclick="openCreateModal('restaurant')">+ Add</button>
+          <button class="btn btn-success btn-xs" onclick="openBatchImportModal()" style="margin-left: 6px;">Batch Import</button>
+        </div>
       </div>
 
       <!-- Drag indicator area dropzone -->
@@ -589,7 +604,7 @@
   </main>
 
   <!-- ==================================================================== -->
-  <!-- MODAL FOR CREAT & EDIT FORM DIALOGS                                  -->
+  <!-- MODAL FOR CREATE & EDIT FORM DIALOGS                                 -->
   <!-- ==================================================================== -->
   <div class="modal-backdrop" id="crudModal">
     <div class="modal-card">
@@ -620,9 +635,14 @@
             <input type="text" id="inputStoreName" placeholder="e.g. Sun Valley or Lewisville">
           </div>
 
+          <div class="form-group" id="groupStoreManager" style="display: none;">
+            <label for="inputStoreManager">Store Manager</label>
+            <input type="text" id="inputStoreManager" placeholder="e.g. Robin Douglas">
+          </div>
+
           <div class="form-group" id="groupAddress" style="display: none;">
             <label for="inputAddress">Address</label>
-            <input type="text" id="inputAddress" placeholder="123 Street Dr., Fort Worth, TX 76119">
+            <input type="text" id="inputAddress" placeholder="e.g. 5401 Sun Valley Dr., Fort Worth, TX 76119">
           </div>
 
           <!-- Shared Contact fields -->
@@ -664,22 +684,76 @@
   </div>
 
   <!-- ==================================================================== -->
+  <!-- MODAL FOR BATCH RESTAURANTS IMPORT                                   -->
+  <!-- ==================================================================== -->
+  <div class="modal-backdrop" id="batchImportModal">
+    <div class="modal-card" style="max-width: 650px;">
+      <div class="modal-header">
+        <h3>Batch Import Restaurants</h3>
+        <button class="modal-close" onclick="closeBatchImportModal()">&times;</button>
+      </div>
+      
+      <div class="modal-body" style="display: flex; flex-direction: column; gap: 15px;">
+        <div class="form-group">
+          <label>Paste Spreadsheet Data (TSV Format)</label>
+          <p style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 8px; line-height: 1.3;">
+            Copy and paste rows straight from Google Sheets or Excel. Expected Columns: <br>
+            <strong style="color: #475569;">Store Name &nbsp;&bull;&nbsp; Store Manager &nbsp;&bull;&nbsp; Address &nbsp;&bull;&nbsp; City &nbsp;&bull;&nbsp; State &nbsp;&bull;&nbsp; Zip &nbsp;&bull;&nbsp; Phone</strong>
+          </p>
+          <textarea id="batchTextArea" rows="7" style="width: 100%; padding: 10px; font-family: monospace; font-size: 0.8rem; border: 1px solid #cbd5e1; border-radius: 4px; resize: vertical;" placeholder="Burger King #23086 Atlanta	Robin Douglas	299 U.S. 59	Atlanta	TX	75551	(430) 562-7070&#10;Burger King #11460 Bonham	Patrick Chambers	1801 North, TX-121	Bonham	TX	75418	(903) 640-0024" oninput="previewBatchInput()"></textarea>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+          <div class="form-group">
+            <label for="batchDefaultDirector">Assign to Director</label>
+            <select id="batchDefaultDirector">
+              <option value="">-- No Assignment --</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="batchDefaultCoach">Assign to Area Coach</label>
+            <select id="batchDefaultCoach" onchange="syncBatchDirector(this.value)">
+              <option value="">-- Direct Report to Director --</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Parse Preview Area -->
+        <div style="border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; background-color: #f8fafc; max-height: 200px; overflow-y: auto;">
+          <div style="font-size: 0.78rem; font-weight: 700; color: #475569; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
+            <span>Import Preview FEED</span>
+            <span id="batchCountBadge" style="background-color: #e2e8f0; color: #475569; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 600;">0 rows</span>
+          </div>
+          <div id="batchPreviewRows" style="font-size: 0.75rem; color: #64748b; line-height: 1.4;">
+            <p style="text-align: center; font-style: italic; color: #94a3b8; padding: 15px 0;">No raw store data pasted yet.</p>
+          </div>
+        </div>
+      </div>
+      
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="closeBatchImportModal()">Cancel</button>
+        <button type="button" class="btn btn-success" id="batchImportBtn" onclick="executeBatchImport()" disabled>Process Import</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================================================================== -->
   <!-- JAVASCRIPT LOGIC (Firebase setup, drag/drop, list renders, CRUD)     -->
   <!-- ==================================================================== -->
   <script>
     // ==========================================
     // 1. FIREBASE CONFIGURATION
-    // Paste your Firebase web app config and Realtime Database URL here:
+    // Standard Config for Dossani Core database
     // ==========================================
-const firebaseConfig = {
-  apiKey: "AIzaSyDIGLmJ5r_fBhB5xOL8oadQ7csN3wGh2dI",
-  authDomain: "dpm-alignment.firebaseapp.com",
-  databaseURL: "https://dpm-alignment-default-rtdb.firebaseio.com",
-  projectId: "dpm-alignment",
-  storageBucket: "dpm-alignment.firebasestorage.app",
-  messagingSenderId: "298588092433",
-  appId: "1:298588092433:web:694a9412658adac039d9b0"
-};
+    const firebaseConfig = {
+      apiKey: "AIzaSyDIGLmJ5r_fBhB5xOL8oadQ7csN3wGh2dI",
+      authDomain: "dpm-alignment.firebaseapp.com",
+      databaseURL: "https://dpm-alignment-default-rtdb.firebaseio.com",
+      projectId: "dpm-alignment",
+      storageBucket: "dpm-alignment.firebasestorage.app",
+      messagingSenderId: "298588092433",
+      appId: "1:298588092433:web:694a9412658adac039d9b0"
+    };
 
     // Initialize Firebase
     firebase.initializeApp(firebaseConfig);
@@ -760,7 +834,7 @@ const firebaseConfig = {
         card.setAttribute("data-id", dirId);
         card.setAttribute("data-type", "director");
         
-        // Directors are not draggable, but they are a valid dropzone for coach and direct reports
+        // Directors are a valid dropzone for coach and direct reports
         card.addEventListener("click", () => selectDirector(dirId));
         card.addEventListener("dragover", handleDragOverCard);
         card.addEventListener("dragleave", handleDragLeaveCard);
@@ -775,7 +849,7 @@ const firebaseConfig = {
             </div>
           </div>
           <div class="card-detail">✉ ${escapeHtml(dir.email || 'No email')}</div>
-          <div class="card-detail">☎ ${escapeHtml(dir.phone || 'No phone')}</div>
+          <div class="card-detail">☎ ${escapeHtml(formatPhoneNumber(dir.phone) || 'No phone')}</div>
         `;
         listDiv.appendChild(card);
       });
@@ -840,7 +914,7 @@ const firebaseConfig = {
             </div>
           </div>
           <div class="card-detail">✉ ${escapeHtml(coach.email || 'No email')}</div>
-          <div class="card-detail">☎ ${escapeHtml(coach.phone || 'No phone')}</div>
+          <div class="card-detail">☎ ${escapeHtml(formatPhoneNumber(coach.phone) || 'No phone')}</div>
           <div class="assignment-tags">
             ${dirName ? `<span class="relation-badge badge-director">Director: ${escapeHtml(dirName)}</span>` : '<span class="relation-badge badge-unassigned">No Director</span>'}
           </div>
@@ -932,8 +1006,9 @@ const firebaseConfig = {
               <button class="btn btn-icon btn-icon-delete" onclick="deleteEntry('restaurant', '${restId}')">✕</button>
             </div>
           </div>
+          ${rest.storeManager ? `<div class="card-detail" style="font-weight: 500; color: #1e293b;">👤 Manager: ${escapeHtml(rest.storeManager)}</div>` : ''}
           <div class="card-detail">📍 ${escapeHtml(rest.address || 'No address')}</div>
-          <div class="card-detail">☎ ${escapeHtml(rest.phone || 'No phone')}</div>
+          <div class="card-detail">☎ ${escapeHtml(formatPhoneNumber(rest.phone) || 'No phone')}</div>
           <div class="assignment-tags">
             ${dirName ? `<span class="relation-badge badge-director">Dir: ${escapeHtml(dirName)}</span>` : ''}
             ${coachName ? `<span class="relation-badge badge-coach">Coach: ${escapeHtml(coachName)}</span>` : '<span class="relation-badge badge-unassigned">Direct Report</span>'}
@@ -1080,6 +1155,7 @@ const firebaseConfig = {
       renderAll();
     }
 
+    // Handle Coach list click filtering
     function selectCoach(id) {
       if (selectedCoachId === id) {
         // Toggle selection
@@ -1133,6 +1209,7 @@ const firebaseConfig = {
         const item = restaurants[id];
         document.getElementById("inputStoreNumber").value = item.storeNumber || "";
         document.getElementById("inputStoreName").value = item.storeName || "";
+        document.getElementById("inputStoreManager").value = item.storeManager || "";
         document.getElementById("inputAddress").value = item.address || "";
         document.getElementById("inputEmail").value = item.email || "";
         document.getElementById("inputPhone").value = item.phone || "";
@@ -1152,6 +1229,7 @@ const firebaseConfig = {
       document.getElementById("groupName").style.display = type !== "restaurant" ? "block" : "none";
       document.getElementById("groupStoreNo").style.display = type === "restaurant" ? "block" : "none";
       document.getElementById("groupStoreName").style.display = type === "restaurant" ? "block" : "none";
+      document.getElementById("groupStoreManager").style.display = type === "restaurant" ? "block" : "none";
       document.getElementById("groupAddress").style.display = type === "restaurant" ? "block" : "none";
       
       document.getElementById("groupAssignedDirector").style.display = type !== "director" ? "block" : "none";
@@ -1205,14 +1283,14 @@ const firebaseConfig = {
           id: id,
           name: document.getElementById("inputName").value,
           email: document.getElementById("inputEmail").value,
-          phone: document.getElementById("inputPhone").value
+          phone: formatPhoneNumber(document.getElementById("inputPhone").value)
         };
       } else if (type === "coach") {
         updates[`areaCoaches/${id}`] = {
           id: id,
           name: document.getElementById("inputName").value,
           email: document.getElementById("inputEmail").value,
-          phone: document.getElementById("inputPhone").value,
+          phone: formatPhoneNumber(document.getElementById("inputPhone").value),
           assignedDirectorId: document.getElementById("selectAssignedDirector").value
         };
       } else if (type === "restaurant") {
@@ -1220,8 +1298,10 @@ const firebaseConfig = {
           id: id,
           storeNumber: document.getElementById("inputStoreNumber").value,
           storeName: document.getElementById("inputStoreName").value,
+          storeManager: document.getElementById("inputStoreManager").value,
           address: document.getElementById("inputAddress").value,
-          phone: document.getElementById("inputPhone").value,
+          email: document.getElementById("inputEmail").value,
+          phone: formatPhoneNumber(document.getElementById("inputPhone").value),
           assignedAreaCoachId: document.getElementById("selectAssignedCoach").value,
           assignedDirectorId: document.getElementById("selectAssignedDirector").value
         };
@@ -1256,7 +1336,204 @@ const firebaseConfig = {
     }
 
     // ==========================================
-    // 8. DATABASE SEED DATA UTILITY FUNCTION
+    // 8. BATCH RESTAURANTS IMPORT OPERATIONS
+    // ==========================================
+    let currentParsedStores = [];
+
+    function openBatchImportModal() {
+      document.getElementById("batchTextArea").value = "";
+      document.getElementById("batchCountBadge").innerText = "0 rows";
+      document.getElementById("batchPreviewRows").innerHTML = `<p style="text-align: center; font-style: italic; color: #94a3b8; padding: 15px 0;">No raw store data pasted yet.</p>`;
+      document.getElementById("batchImportBtn").disabled = true;
+
+      // Populate batch assign fields
+      const batchDir = document.getElementById("batchDefaultDirector");
+      const batchCoach = document.getElementById("batchDefaultCoach");
+
+      batchDir.innerHTML = `<option value="">-- No Direct Link --</option>`;
+      Object.keys(directors).forEach(id => {
+        batchDir.innerHTML += `<option value="${id}">${escapeHtml(directors[id].name)}</option>`;
+      });
+
+      batchCoach.innerHTML = `<option value="">-- Direct Report to Director --</option>`;
+      Object.keys(areaCoaches).forEach(id => {
+        const dirText = areaCoaches[id].assignedDirectorId && directors[areaCoaches[id].assignedDirectorId] ? ` (${directors[areaCoaches[id].assignedDirectorId].name})` : '';
+        batchCoach.innerHTML += `<option value="${id}">${escapeHtml(areaCoaches[id].name)}${escapeHtml(dirText)}</option>`;
+      });
+
+      // Default cascade dropdowns using active filter states
+      if (selectedCoachId) {
+        batchCoach.value = selectedCoachId;
+        const coach = areaCoaches[selectedCoachId];
+        batchDir.value = (coach && coach.assignedDirectorId) ? coach.assignedDirectorId : "";
+      } else if (selectedDirectorId) {
+        batchDir.value = selectedDirectorId;
+        batchCoach.value = "";
+      } else {
+        batchDir.value = "";
+        batchCoach.value = "";
+      }
+
+      document.getElementById("batchImportModal").classList.add("active");
+    }
+
+    function closeBatchImportModal() {
+      document.getElementById("batchImportModal").classList.remove("active");
+    }
+
+    function syncBatchDirector(coachId) {
+      if (coachId && areaCoaches[coachId]) {
+        const coach = areaCoaches[coachId];
+        document.getElementById("batchDefaultDirector").value = coach.assignedDirectorId || "";
+      }
+    }
+
+    // CSV / TSV Parsing Algorithm
+    function parseBatchInput(text) {
+      if (!text || !text.trim()) return [];
+      const lines = text.split(/\r?\n/);
+      const results = [];
+      
+      lines.forEach(line => {
+        const trimmedLine = line.trim();
+        if (!trimmedLine) return;
+        
+        // Tab-separated split (Standard spreadsheet copy-paste)
+        let columns = trimmedLine.split('\t');
+        
+        // If copy-paste was comma segmented:
+        if (columns.length < 3) {
+          columns = trimmedLine.split(',');
+        }
+        
+        // Strip string quote decorations
+        columns = columns.map(col => col.trim().replace(/^["']|["']$/g, '').trim());
+        
+        // Skip Header Line
+        const firstColLower = columns[0].toLowerCase();
+        if (firstColLower.includes('store name') || firstColLower.includes('storename')) {
+          return;
+        }
+        
+        if (columns.length < 2) return; // skip junk lines
+        
+        const rawStoreName = columns[0] || 'Unknown Restaurant';
+        const storeManager = columns[1] || '';
+        const rawAddress = columns[2] || '';
+        const city = columns[3] || '';
+        const state = columns[4] || '';
+        const zip = columns[5] || '';
+        const phone = columns[6] || '';
+        
+        // Extract Store Number (e.g. Burger King #23086 Atlanta -> #23086)
+        let storeNumber = '#';
+        let storeName = rawStoreName;
+        
+        // Look for explicitly declared store code
+        const numberMatch = rawStoreName.match(/#([A-Za-z0-9-]+)/);
+        if (numberMatch) {
+          storeNumber = numberMatch[0];
+        } else {
+          // Fallback extraction
+          const numSeqMatch = rawStoreName.match(/\d+/);
+          if (numSeqMatch) {
+            storeNumber = `#${numSeqMatch[0]}`;
+          }
+        }
+        
+        // Reconstruct Clean combined address
+        let addressParts = [];
+        if (rawAddress) addressParts.push(rawAddress);
+        if (city) addressParts.push(city);
+        
+        let stateZip = '';
+        if (state) stateZip += state;
+        if (zip) stateZip += (stateZip ? ' ' + zip : zip);
+        if (stateZip) addressParts.push(stateZip);
+        
+        const combinedAddress = addressParts.join(', ');
+        
+        results.push({
+          storeNumber,
+          storeName,
+          storeManager,
+          address: combinedAddress,
+          phone: formatPhoneNumber(phone),
+          assignedAreaCoachId: "",
+          assignedDirectorId: ""
+        });
+      });
+      
+      return results;
+    }
+
+    function previewBatchInput() {
+      const text = document.getElementById("batchTextArea").value;
+      const parsed = parseBatchInput(text);
+      currentParsedStores = parsed;
+
+      const previewDiv = document.getElementById("batchPreviewRows");
+      const badge = document.getElementById("batchCountBadge");
+      const importBtn = document.getElementById("batchImportBtn");
+
+      badge.innerText = `${parsed.length} rows`;
+
+      if (parsed.length === 0) {
+        previewDiv.innerHTML = `<p style="text-align: center; font-style: italic; color: #94a3b8; padding: 15px 0;">No raw store data pasted yet.</p>`;
+        importBtn.disabled = true;
+      } else {
+        importBtn.disabled = false;
+        let htmlList = `<div style="display: flex; flex-direction: column; gap: 8px;">`;
+        parsed.forEach((store, i) => {
+          htmlList += `
+            <div style="border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; margin-bottom: 4px;">
+              <span style="font-weight: 600; color: #0f172a;">[${store.storeNumber}] ${escapeHtml(store.storeName)}</span>
+              <div style="font-size: 0.72rem; color: #64748b; margin-top: 2px; display: flex; flex-wrap: wrap; gap: 8px;">
+                <span>👤 Mgr: ${escapeHtml(store.storeManager || 'N/A')}</span>
+                <span>📍 ${escapeHtml(store.address)}</span>
+                <span>☎ ${store.phone}</span>
+              </div>
+            </div>
+          `;
+        });
+        htmlList += `</div>`;
+        previewDiv.innerHTML = htmlList;
+      }
+    }
+
+    function executeBatchImport() {
+      if (currentParsedStores.length === 0) {
+        alert("Pasted data could not be parsed successfully.");
+        return;
+      }
+
+      const defaultDirId = document.getElementById("batchDefaultDirector").value;
+      const defaultCoachId = document.getElementById("batchDefaultCoach").value;
+
+      const updates = {};
+      const rootRef = db.ref("restaurants");
+
+      currentParsedStores.forEach(store => {
+        const newId = rootRef.push().key;
+        store.id = newId;
+        store.assignedDirectorId = defaultDirId || "";
+        store.assignedAreaCoachId = defaultCoachId || "";
+        
+        updates[`restaurants/${newId}`] = store;
+      });
+
+      db.ref().update(updates, (err) => {
+        if (err) {
+          alert("Error importing records: " + err.message);
+        } else {
+          alert(`Successfully imported ${currentParsedStores.length} stores into the list!`);
+          closeBatchImportModal();
+        }
+      });
+    }
+
+    // ==========================================
+    // 9. DATABASE SEED DATA UTILITY FUNCTION
     // ==========================================
     function seedDatabase() {
       if (!confirm("This will clean and prepopulate database structure with standard demo entries. Continue?")) {
@@ -1276,12 +1553,12 @@ const firebaseConfig = {
           "coach_waleska": { id: "coach_waleska", name: "Waleska Rios", email: "waleska@dossaniparadise.com", phone: "(214) 555-0204", assignedDirectorId: "dir_paul" }
         },
         restaurants: {
-          "store_01": { id: "store_01", storeNumber: "QS #01", storeName: "Paradise QS - Sun Valley", address: "5401 Sun Valley Dr., Fort Worth, TX 76119", phone: "(817) 555-9001", assignedAreaCoachId: "coach_jennifer", assignedDirectorId: "dir_rick" },
-          "store_02": { id: "store_02", storeNumber: "QS #02", storeName: "Paradise QS - Lewisville", address: "521 E. Hwy 121, Lewisville, TX 75057", phone: "(972) 555-9002", assignedAreaCoachId: "coach_jennifer", assignedDirectorId: "dir_rick" },
-          "store_03": { id: "store_03", storeNumber: "QS #04", storeName: "Paradise QS - Alvord", address: "8417 N. US Hwy 287, Alvord, TX 76225", phone: "(940) 555-9003", assignedAreaCoachId: "coach_vishal", assignedDirectorId: "dir_rick" },
-          "store_04": { id: "store_04", storeNumber: "QS #05", storeName: "Paradise QS - Hope", address: "901 W. 3rd St., Hope, AR 71801", phone: "(870) 555-9004", assignedAreaCoachId: "", assignedDirectorId: "dir_rick" },
-          "store_05": { id: "store_05", storeNumber: "BK #27082", storeName: "Burger King Alliance", address: "15933 North Freeway, Fort Worth, TX 76177", phone: "(817) 555-4001", assignedAreaCoachId: "coach_pedro", assignedDirectorId: "dir_paul" },
-          "store_06": { id: "store_06", storeNumber: "BK #22027", storeName: "Burger King Alvord", address: "8417 N.US Hwy 287, Alvord, TX 76225", phone: "(940) 555-4002", assignedAreaCoachId: "coach_waleska", assignedDirectorId: "dir_paul" }
+          "store_01": { id: "store_01", storeNumber: "QS #01", storeName: "Paradise QS - Sun Valley", storeManager: "James Patterson", address: "5401 Sun Valley Dr., Fort Worth, TX 76119", phone: "(817) 555-9001", assignedAreaCoachId: "coach_jennifer", assignedDirectorId: "dir_rick" },
+          "store_02": { id: "store_02", storeNumber: "QS #02", storeName: "Paradise QS - Lewisville", storeManager: "Sarah Connor", address: "521 E. Hwy 121, Lewisville, TX 75057", phone: "(972) 555-9002", assignedAreaCoachId: "coach_jennifer", assignedDirectorId: "dir_rick" },
+          "store_03": { id: "store_03", storeNumber: "QS #04", storeName: "Paradise QS - Alvord", storeManager: "Michael Myers", address: "8417 N. US Hwy 287, Alvord, TX 76225", phone: "(940) 555-9003", assignedAreaCoachId: "coach_vishal", assignedDirectorId: "dir_rick" },
+          "store_04": { id: "store_04", storeNumber: "QS #05", storeName: "Paradise QS - Hope", storeManager: "Alice Cooper", address: "901 W. 3rd St., Hope, AR 71801", phone: "(870) 555-9004", assignedAreaCoachId: "", assignedDirectorId: "dir_rick" },
+          "store_05": { id: "store_05", storeNumber: "BK #27082", storeName: "Burger King Alliance", storeManager: "John Connor", address: "15933 North Freeway, Fort Worth, TX 76177", phone: "(817) 555-4001", assignedAreaCoachId: "coach_pedro", assignedDirectorId: "dir_paul" },
+          "store_06": { id: "store_06", storeNumber: "BK #22027", storeName: "Burger King Alvord", storeManager: "Lara Croft", address: "8417 N.US Hwy 287, Alvord, TX 76225", phone: "(940) 555-4002", assignedAreaCoachId: "coach_waleska", assignedDirectorId: "dir_paul" }
         }
       };
 
@@ -1296,7 +1573,7 @@ const firebaseConfig = {
     }
 
     // ==========================================
-    // 9. STRING & CHARACTER UTILITIES
+    // 10. STRING & CHARACTER UTILITIES
     // ==========================================
     function escapeHtml(str) {
       if (!str) return '';
@@ -1311,6 +1588,19 @@ const firebaseConfig = {
     function capitalize(str) {
       if (!str) return '';
       return str.charAt(0).toUpperCase() + str.slice(1);
+    }
+
+    function formatPhoneNumber(phoneStr) {
+      if (!phoneStr) return '';
+      // Strip all non-numeric characters
+      const cleaned = String(phoneStr).replace(/\D/g, '');
+      if (cleaned.length === 10) {
+        return `${cleaned.slice(0, 3)}-${cleaned.slice(3, 6)}-${cleaned.slice(6)}`;
+      } else if (cleaned.length === 11 && cleaned[0] === '1') {
+        // USA code prefix stripper
+        return `${cleaned.slice(1, 4)}-${cleaned.slice(4, 7)}-${cleaned.slice(7)}`;
+      }
+      return phoneStr;
     }
   </script>
 </body>
