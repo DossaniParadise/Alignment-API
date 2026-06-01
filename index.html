@@ -838,7 +838,7 @@
   <header>
     <div class="header-logo">
       <h1>Dossani Central Store Manager</h1>
-      <span>v2.2 Operations Dashboard</span>
+      <span>v3.0 Operations Dashboard</span>
     </div>
     
     <div class="header-actions">
@@ -1092,11 +1092,15 @@
       <div class="modal-body" style="display: flex; flex-direction: column; gap: 15px;">
         <div class="form-group">
           <label>Paste Spreadsheet Data (TSV Format)</label>
-          <p style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 8px; line-height: 1.3;">
-            Copy and paste rows straight from Google Sheets or Excel. Expected Columns: <br>
-            <strong style="color: #475569;">Store Name &nbsp;&bull;&nbsp; Store Manager &nbsp;&bull;&nbsp; Address &nbsp;&bull;&nbsp; City &nbsp;&bull;&nbsp; State &nbsp;&bull;&nbsp; Zip &nbsp;&bull;&nbsp; Phone</strong>
-          </p>
-          <textarea id="batchTextArea" rows="7" style="width: 100%; padding: 10px; font-family: monospace; font-size: 0.8rem; border: 1px solid #cbd5e1; border-radius: 4px; resize: vertical;" placeholder="Burger King #23086 Atlanta	Robin Douglas	299 U.S. 59	Atlanta	TX	75551	(430) 562-7070&#10;Burger King #11460 Bonham	Patrick Chambers	1801 North, TX-121	Bonham	TX	75418	(903) 640-0024" oninput="previewBatchInput()"></textarea>
+          <div style="font-size: 0.72rem; color: var(--text-muted); margin-bottom: 8px; line-height: 1.4; display: flex; flex-direction: column; gap: 4px;">
+            <div>Copy and paste rows directly from Google Sheets or Excel. Supports automatic matching of the following column formats:</div>
+            <ul style="padding-left: 15px; margin: 2px 0; display: flex; flex-direction: column; gap: 2px;">
+              <li><strong>1. Full GPS Format (10 columns):</strong><br><span style="color: #475569;">Entity &bull; Store Name &bull; Store Manager &bull; Address &bull; City &bull; State &bull; Zip &bull; Phone &bull; Latitude &bull; Longitude</span></li>
+              <li><strong>2. Compact GPS Format (7 columns):</strong><br><span style="color: #475569;">Store Name &bull; Address &bull; City &bull; State &bull; Zip &bull; Latitude &bull; Longitude</span></li>
+              <li><strong>3. Classic Format (7-8 columns):</strong><br><span style="color: #475569;">[Entity] &bull; Store Name &bull; Store Manager &bull; Address &bull; City &bull; State &bull; Zip &bull; Phone</span></li>
+            </ul>
+          </div>
+          <textarea id="batchTextArea" rows="7" style="width: 100%; padding: 10px; font-family: monospace; font-size: 0.8rem; border: 1px solid #cbd5e1; border-radius: 4px; resize: vertical;" placeholder="Buddy's Enterprises Inc.	Paradise Quick Stop #02	Kabir Bodhani	521 E. Hwy 121	Lewisville	TX	75057	(972) 219-0096	32.9906715	-96.97804" oninput="previewBatchInput()"></textarea>
         </div>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
