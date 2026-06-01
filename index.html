@@ -256,8 +256,8 @@
       pointer-events: none;
     }
 
-    /* Custom classes to re-enable button clicking inside the cards */
-    .card button, .card .card-actions {
+    /* Custom classes to re-enable button and ink clicking inside the cards */
+    .card button, .card .card-actions, .card a {
       pointer-events: auto !important;
     }
 
@@ -1777,8 +1777,8 @@
                 <span class="font-bold" style="font-size: 0.88rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 1;">${escapeHtml(rest.storeName)}</span>
               </div>
               <div class="card-actions" style="flex-shrink: 0; display: flex; gap: 4px; margin-left: 6px;">
-                <button class="btn btn-icon btn-icon-edit" onclick="event.stopPropagation(); openEditModal('restaurant', '${restId}')">✎</button>
-                <button class="btn btn-icon btn-icon-delete" onclick="event.stopPropagation(); deleteEntry('restaurant', '${restId}')">✕</button>
+                <button class="btn btn-icon btn-icon-edit" onmousedown="event.stopPropagation();" onclick="event.stopPropagation(); openEditModal('restaurant', '${restId}')" title="Edit">✎</button>
+                <button class="btn btn-icon btn-icon-delete" onmousedown="event.stopPropagation();" onclick="event.stopPropagation(); deleteEntry('restaurant', '${restId}')" title="Delete">✕</button>
               </div>
             </div>
             ${rest.entity ? `<div class="card-detail" style="font-weight: 550; color: #1e3a8a; margin-top: 4px;">🏢 Entity: ${escapeHtml(rest.entity)}</div>` : ''}
@@ -1786,9 +1786,9 @@
             <div class="card-detail">📍 Address: ${escapeHtml(rest.address || 'No address')}</div>
             <div class="card-detail">☎ Phone: ${escapeHtml(formatPhoneNumber(rest.phone) || 'No phone')}</div>
             ${(rest.latitude || rest.longitude) ? `
-              <div class="card-detail" style="color: #0369a1; font-weight: 550; display: flex; align-items: center; justify-content: space-between;">
+              <div class="card-detail" style="color: #0369a1; font-weight: 550; display: flex; align-items: center; justify-content: space-between; margin-top: 2px;">
                 <span>🌐 GPS: ${escapeHtml(rest.latitude || 'N/A')}, ${escapeHtml(rest.longitude || 'N/A')}</span>
-                <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([rest.latitude, rest.longitude].filter(Boolean).join(','))}" target="_blank" onclick="event.stopPropagation();" style="color: #2563eb; font-weight: 600; text-decoration: underline; font-size: 0.7rem; display: inline-flex; align-items: center; gap: 2px;">
+                <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([rest.latitude, rest.longitude].filter(Boolean).join(','))}" target="_blank" onmousedown="event.stopPropagation();" onclick="event.stopPropagation();" draggable="false" style="color: #1d4ed8; background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 9999px; padding: 2px 8px; font-weight: 600; text-decoration: none; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 4px; transition: background-color 0.2s, color 0.2s; cursor: pointer;">
                   Open Map ↗
                 </a>
               </div>
