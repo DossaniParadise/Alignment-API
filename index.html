@@ -2305,6 +2305,33 @@
       }
     }
 
+    // Clean and normalize store number for smarter compare (e.g., strips "QS #", "BK #", leading zeros, etc.)
+    function normalizeStoreNumberForComparison(numStr) {
+      if (!numStr) return "";
+      const cleanedNum = String(numStr).trim().toLowerCase();
+      
+      // Extract the first continuous sequence of digits inside the store number
+      const digitsMatch = cleanedNum.match(/\d+/);
+      if (digitsMatch) {
+        // Strip leading zeros by parsing to integer, then return as a string (e.g., "02390" -> "2390", "01" -> "1")
+        return String(parseInt(digitsMatch[0], 10));
+      }
+      return cleanedNum;
+    }
+
+    function doStoreNumbersMatch(num1, num2) {
+      const u1 = (num1 || '').trim().toLowerCase();
+      const u2 = (num2 || '').trim().toLowerCase();
+      if (!u1 || !u2) return false;
+      if (u1 === u2) return true;
+      
+      const norm1 = normalizeStoreNumberForComparison(u1);
+      const norm2 = normalizeStoreNumberForComparison(u2);
+      if (norm1 && norm2 && norm1 === norm2) return true;
+      
+      return false;
+    }
+
     // CSV / TSV Parsing Algorithm with robust support for dynamic header mappings
     function parseBatchInput(text) {
       if (!text || !text.trim()) return [];
@@ -2405,31 +2432,38 @@
           if (headerIndices.latitude !== -1) latitude = columns[headerIndices.latitude] || '';
           if (headerIndices.longitude !== -1) longitude = columns[headerIndices.longitude] || '';
         } else {
-          // Auto-detect format structure (Old vs New vs GPS format)
-          // GPS format has 7 columns but has latitude/longitude at col index 5 and 6:
-          // StoreName, Address, City, State, Zip, Latitude, Longitude (7 columns)
-          // New format contains column for Entity: Entity, StoreName, Manager, Address, City, State, Zip, Phone (8 columns)
-          // Old format was: StoreName, Manager, Address, City, State, Zip, Phone, Entity (7-8 columns)
-          let isGpsFormat = false;
+          // Auto-detect format structure (Old vs New vs GPS 10-col vs GPS 7-col format)
+          let is10ColGpsFormat = false;
+          let is7ColGpsFormat = false;
           let isNewFormat = false;
 
-          if (columns.length >= 7) {
+          // Check if index 8 & 9 are longitude/latitude coordinates
+          if (columns.length >= 10) {
+            const col8 = columns[8] || '';
+            const col9 = columns[9] || '';
+            const latVal = parseFloat(col8);
+            const lngVal = parseFloat(col9);
+            const isLat = !isNaN(latVal) && isFinite(latVal) && latVal >= -90 && latVal <= 90 && col8.includes('.');
+            const isLng = !isNaN(lngVal) && isFinite(lngVal) && lngVal >= -180 && lngVal <= 180 && col9.includes('.');
+            if (isLat && isLng) {
+              is10ColGpsFormat = true;
+            }
+          }
+
+          // Check if 7 columns with lat/lng at 5 and 6
+          if (!is10ColGpsFormat && columns.length >= 7) {
             const col5 = columns[5] || '';
             const col6 = columns[6] || '';
             const latVal = parseFloat(col5);
             const lngVal = parseFloat(col6);
-            
-            // Check if col5 and col6 are valid coordinate-like floats (e.g. latitude between -90 and 90, longitude between -180 and 180)
-            // Coordinates typically have decimals (e.g., "33.4522178", "-94.130179")
             const isLat = !isNaN(latVal) && isFinite(latVal) && latVal >= -90 && latVal <= 90 && col5.includes('.');
             const isLng = !isNaN(lngVal) && isFinite(lngVal) && lngVal >= -180 && lngVal <= 180 && col6.includes('.');
-            
             if (isLat && isLng) {
-              isGpsFormat = true;
+              is7ColGpsFormat = true;
             }
           }
 
-          if (!isGpsFormat && columns.length >= 8) {
+          if (!is10ColGpsFormat && !is7ColGpsFormat && columns.length >= 8) {
             const col4 = (columns[4] || "").toUpperCase().trim();
             const col5 = (columns[5] || "").toUpperCase().trim();
             const col6 = (columns[6] || "").trim();
@@ -2462,7 +2496,18 @@
             }
           }
           
-          if (isGpsFormat) {
+          if (is10ColGpsFormat) {
+            entity = columns[0] || '';
+            rawStoreName = columns[1] || '';
+            storeManager = columns[2] || '';
+            rawAddress = columns[3] || '';
+            city = columns[4] || '';
+            state = columns[5] || '';
+            zip = columns[6] || '';
+            phone = columns[7] || '';
+            latitude = columns[8] || '';
+            longitude = columns[9] || '';
+          } else if (is7ColGpsFormat) {
             rawStoreName = columns[0] || '';
             rawAddress = columns[1] || '';
             city = columns[2] || '';
@@ -2595,27 +2640,57 @@
       const existingStoresList = Object.values(restaurants);
 
       currentParsedStores.forEach((store) => {
-        // Find existing match by raw storeNumber (trimmed & case-insensitive)
+        // Find existing match by smart leading-zeros-agnostic comparison
         const matched = existingStoresList.find(r => 
-          (r.storeNumber || '').trim().toLowerCase() === (store.storeNumber || '').trim().toLowerCase()
+          doStoreNumbersMatch(r.storeNumber, store.storeNumber)
         );
 
         let targetId;
+        let finalStoreObj;
         if (matched) {
-          // UPDATE (UPSERT)
+          // UPDATE (UPSERT / MERGE)
           targetId = matched.id;
-          store.id = targetId;
-          store.assignedDirectorId = defaultDirId || matched.assignedDirectorId || "";
-          store.assignedAreaCoachId = defaultCoachId || matched.assignedAreaCoachId || "";
+          
+          // Construct a robust merged object so we don't overwrite populated fields with empty imported ones
+          finalStoreObj = { ...matched };
+          
+          if (store.storeNumber && store.storeNumber !== '#') {
+            finalStoreObj.storeNumber = store.storeNumber;
+          }
+          if (store.storeName && store.storeName !== 'Unknown Restaurant') {
+            finalStoreObj.storeName = store.storeName;
+          }
+          if (store.storeManager && store.storeManager.trim()) {
+            finalStoreObj.storeManager = store.storeManager;
+          }
+          if (store.address && store.address.trim() && store.address !== 'No address') {
+            finalStoreObj.address = store.address;
+          }
+          if (store.phone && store.phone.trim()) {
+            finalStoreObj.phone = store.phone;
+          }
+          if (store.entity && store.entity.trim()) {
+            finalStoreObj.entity = store.entity;
+          }
+          if (store.latitude && store.latitude.trim()) {
+            finalStoreObj.latitude = store.latitude;
+          }
+          if (store.longitude && store.longitude.trim()) {
+            finalStoreObj.longitude = store.longitude;
+          }
+          
+          finalStoreObj.assignedDirectorId = defaultDirId || matched.assignedDirectorId || "";
+          finalStoreObj.assignedAreaCoachId = defaultCoachId || matched.assignedAreaCoachId || "";
         } else {
           // CREATE
           targetId = rootRef.push().key;
           store.id = targetId;
           store.assignedDirectorId = defaultDirId || "";
           store.assignedAreaCoachId = defaultCoachId || "";
+          finalStoreObj = store;
         }
 
-        updates[`restaurants/${targetId}`] = store;
+        updates[`restaurants/${targetId}`] = finalStoreObj;
       });
 
       db.ref().update(updates, (err) => {
