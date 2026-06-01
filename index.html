@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dossani Central Store Alignment</title>
+  <title>Dossani Central Store Manager</title>
   
   <!-- ==================================================================== -->
   <!-- FIREBASE SCRIPTS (Compat v9 CDN)                                     -->
@@ -1031,6 +1031,16 @@
             <input type="text" id="inputEntity" placeholder="e.g. Dossani Paradise Restaurants, LLC">
           </div>
 
+          <div class="form-group" id="groupLatitude" style="display: none;">
+            <label for="inputLatitude">GPS Latitude</label>
+            <input type="text" id="inputLatitude" placeholder="e.g. 32.7015">
+          </div>
+
+          <div class="form-group" id="groupLongitude" style="display: none;">
+            <label for="inputLongitude">GPS Longitude</label>
+            <input type="text" id="inputLongitude" placeholder="e.g. -97.2642">
+          </div>
+
           <!-- Shared Contact fields -->
           <div class="form-group" id="groupEmail">
             <label for="inputEmail">Email Address</label>
@@ -1661,6 +1671,8 @@
           const manager = (rest.storeManager || "").toLowerCase();
           const address = (rest.address || "").toLowerCase();
           const entity = (rest.entity || "").toLowerCase();
+          const lat = (rest.latitude || "").toLowerCase();
+          const lng = (rest.longitude || "").toLowerCase();
           
           const coachName = rest.assignedAreaCoachId && areaCoaches[rest.assignedAreaCoachId] 
             ? areaCoaches[rest.assignedAreaCoachId].name.toLowerCase() 
@@ -1674,6 +1686,8 @@
                  manager.includes(query) || 
                  address.includes(query) ||
                  entity.includes(query) ||
+                 lat.includes(query) ||
+                 lng.includes(query) ||
                  coachName.includes(query) ||
                  dirName.includes(query);
         });
@@ -1767,6 +1781,14 @@
             ${rest.storeManager ? `<div class="card-detail" style="font-weight: 600; color: #334155;">👤 Mgr: ${escapeHtml(rest.storeManager)}</div>` : ''}
             <div class="card-detail">📍 Address: ${escapeHtml(rest.address || 'No address')}</div>
             <div class="card-detail">☎ Phone: ${escapeHtml(formatPhoneNumber(rest.phone) || 'No phone')}</div>
+            ${(rest.latitude || rest.longitude) ? `
+              <div class="card-detail" style="color: #0369a1; font-weight: 550; display: flex; align-items: center; justify-content: space-between;">
+                <span>🌐 GPS: ${escapeHtml(rest.latitude || 'N/A')}, ${escapeHtml(rest.longitude || 'N/A')}</span>
+                <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([rest.latitude, rest.longitude].filter(Boolean).join(','))}" target="_blank" onclick="event.stopPropagation();" style="color: #2563eb; font-weight: 600; text-decoration: underline; font-size: 0.7rem; display: inline-flex; align-items: center; gap: 2px;">
+                  Open Map ↗
+                </a>
+              </div>
+            ` : ''}
             <div class="assignment-tags">
               ${dirName ? `<span class="relation-badge badge-director">Dir: ${escapeHtml(dirName)}</span>` : ''}
               ${coachName ? `<span class="relation-badge badge-coach">Coach: ${escapeHtml(coachName)}</span>` : '<span class="relation-badge badge-unassigned">Direct Report</span>'}
@@ -2095,6 +2117,8 @@
           document.getElementById("inputStoreManager").value = item.storeManager || "";
           document.getElementById("inputAddress").value = item.address || "";
           document.getElementById("inputEntity").value = item.entity || "";
+          document.getElementById("inputLatitude").value = item.latitude || "";
+          document.getElementById("inputLongitude").value = item.longitude || "";
           document.getElementById("inputEmail").value = item.email || "";
           document.getElementById("inputPhone").value = item.phone || "";
           document.getElementById("selectAssignedCoach").value = item.assignedAreaCoachId || "";
@@ -2117,6 +2141,8 @@
       document.getElementById("groupStoreManager").style.display = type === "restaurant" ? "block" : "none";
       document.getElementById("groupAddress").style.display = type === "restaurant" ? "block" : "none";
       document.getElementById("groupEntity").style.display = type === "restaurant" ? "block" : "none";
+      document.getElementById("groupLatitude").style.display = type === "restaurant" ? "block" : "none";
+      document.getElementById("groupLongitude").style.display = type === "restaurant" ? "block" : "none";
       
       document.getElementById("groupAssignedDirector").style.display = type !== "director" ? "block" : "none";
       document.getElementById("groupAssignedCoach").style.display = type === "restaurant" ? "block" : "none";
@@ -2187,6 +2213,8 @@
           storeManager: document.getElementById("inputStoreManager").value,
           address: document.getElementById("inputAddress").value,
           entity: document.getElementById("inputEntity").value || "",
+          latitude: document.getElementById("inputLatitude").value || "",
+          longitude: document.getElementById("inputLongitude").value || "",
           email: document.getElementById("inputEmail").value,
           phone: formatPhoneNumber(document.getElementById("inputPhone").value),
           assignedAreaCoachId: document.getElementById("selectAssignedCoach").value,
@@ -2317,7 +2345,9 @@
             zip: -1,
             phone: -1,
             entity: -1,
-            storeNumber: -1
+            storeNumber: -1,
+            latitude: -1,
+            longitude: -1
           };
           
           columns.forEach((col, colIdx) => {
@@ -2340,6 +2370,10 @@
               headerIndices.entity = colIdx;
             } else if (val.includes('store number') || val.includes('store #') || val === 'storeno' || val === 'number') {
               headerIndices.storeNumber = colIdx;
+            } else if (val === 'latitude' || val === 'lat') {
+              headerIndices.latitude = colIdx;
+            } else if (val === 'longitude' || val === 'lng' || val === 'long') {
+              headerIndices.longitude = colIdx;
             }
           });
           return; // Skip further processing of header row
@@ -2355,6 +2389,8 @@
         let phone = '';
         let entity = '';
         let storeNumber = '';
+        let latitude = '';
+        let longitude = '';
         
         if (headerIndices) {
           if (headerIndices.storeName !== -1) rawStoreName = columns[headerIndices.storeName] || '';
@@ -2366,12 +2402,34 @@
           if (headerIndices.phone !== -1) phone = columns[headerIndices.phone] || '';
           if (headerIndices.entity !== -1) entity = columns[headerIndices.entity] || '';
           if (headerIndices.storeNumber !== -1) storeNumber = columns[headerIndices.storeNumber] || '';
+          if (headerIndices.latitude !== -1) latitude = columns[headerIndices.latitude] || '';
+          if (headerIndices.longitude !== -1) longitude = columns[headerIndices.longitude] || '';
         } else {
-          // Auto-detect format structure (Old vs New format)
+          // Auto-detect format structure (Old vs New vs GPS format)
+          // GPS format has 7 columns but has latitude/longitude at col index 5 and 6:
+          // StoreName, Address, City, State, Zip, Latitude, Longitude (7 columns)
           // New format contains column for Entity: Entity, StoreName, Manager, Address, City, State, Zip, Phone (8 columns)
           // Old format was: StoreName, Manager, Address, City, State, Zip, Phone, Entity (7-8 columns)
+          let isGpsFormat = false;
           let isNewFormat = false;
-          if (columns.length >= 8) {
+
+          if (columns.length >= 7) {
+            const col5 = columns[5] || '';
+            const col6 = columns[6] || '';
+            const latVal = parseFloat(col5);
+            const lngVal = parseFloat(col6);
+            
+            // Check if col5 and col6 are valid coordinate-like floats (e.g. latitude between -90 and 90, longitude between -180 and 180)
+            // Coordinates typically have decimals (e.g., "33.4522178", "-94.130179")
+            const isLat = !isNaN(latVal) && isFinite(latVal) && latVal >= -90 && latVal <= 90 && col5.includes('.');
+            const isLng = !isNaN(lngVal) && isFinite(lngVal) && lngVal >= -180 && lngVal <= 180 && col6.includes('.');
+            
+            if (isLat && isLng) {
+              isGpsFormat = true;
+            }
+          }
+
+          if (!isGpsFormat && columns.length >= 8) {
             const col4 = (columns[4] || "").toUpperCase().trim();
             const col5 = (columns[5] || "").toUpperCase().trim();
             const col6 = (columns[6] || "").trim();
@@ -2404,7 +2462,18 @@
             }
           }
           
-          if (isNewFormat) {
+          if (isGpsFormat) {
+            rawStoreName = columns[0] || '';
+            rawAddress = columns[1] || '';
+            city = columns[2] || '';
+            state = columns[3] || '';
+            zip = columns[4] || '';
+            latitude = columns[5] || '';
+            longitude = columns[6] || '';
+            storeManager = '';
+            phone = '';
+            entity = '';
+          } else if (isNewFormat) {
             entity = columns[0] || '';
             rawStoreName = columns[1] || '';
             storeManager = columns[2] || '';
@@ -2466,6 +2535,8 @@
           address: combinedAddress,
           phone: formatPhoneNumber(phone),
           entity: entity,
+          latitude: latitude || "",
+          longitude: longitude || "",
           assignedAreaCoachId: "",
           assignedDirectorId: ""
         });
@@ -2500,6 +2571,7 @@
                 <span>👤 Mgr: ${escapeHtml(store.storeManager || 'N/A')}</span>
                 <span>📍 ${escapeHtml(store.address)}</span>
                 <span>☎ ${store.phone}</span>
+                ${store.latitude || store.longitude ? `<span>🌐 GPS: ${escapeHtml(store.latitude || '')}, ${escapeHtml(store.longitude || '')}</span>` : ''}
               </div>
             </div>
           `;
