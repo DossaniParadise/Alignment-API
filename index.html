@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dossani Central Store Manager</title>
+  <title>Dossani Central Store Alignment</title>
   
   <!-- ==================================================================== -->
   <!-- FIREBASE SCRIPTS (Compat v9 CDN)                                     -->
@@ -854,7 +854,7 @@
           🔑 Unlock Editing
         </span>
         <label class="switch">
-          <input type="checkbox" id="lockToggle" onchange="setLockState(!this.checked)">
+          <input type="checkbox" id="lockToggle" onchange="handleLockToggleClick(this)">
           <span class="slider round"></span>
         </label>
         <span id="lockStatusText" style="font-size: 0.7rem; font-weight: 700; color: #dc2626;">LOCKED</span>
@@ -1132,10 +1132,14 @@
         <h3 style="font-size: 0.95rem; color: #0f172a; font-weight: 700;">⚠️ Editing is Locked</h3>
         <button class="modal-close" onclick="closeLockConfirmModal()">&times;</button>
       </div>
-      <div class="modal-body" style="padding: 10px 0 15px 0;">
-        <p style="font-size: 0.78rem; color: #475569; line-height: 1.4;">
-          Editing is currently locked. Are you sure you want to make changes?
+      <div class="modal-body" style="padding: 10px 0 15px 0; display: flex; flex-direction: column; gap: 10px;">
+        <p style="font-size: 0.78rem; color: #475569; line-height: 1.4; margin: 0;">
+          Editing is currently locked. To make changes or unlock the dashboard, please enter the authorization password below:
         </p>
+        <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 4px;">
+          <input type="password" id="lockPasswordInput" placeholder="Enter password to unlock..." style="width: 100%; padding: 8px 12px; border: 1px solid var(--neutral-border); border-radius: 4px; font-size: 0.85rem;" onkeydown="handleLockPasswordKeydown(event)">
+          <div id="lockPasswordError" style="color: #dc2626; font-size: 0.72rem; display: none;">Incorrect password. Please try again.</div>
+        </div>
       </div>
       <div class="modal-footer" style="border-top: none; padding-top: 0; display: flex; justify-content: flex-end; gap: 6px;">
         <button type="button" class="btn" style="padding: 4px 10px;" onclick="closeLockConfirmModal()">Cancel</button>
@@ -1182,6 +1186,9 @@
     let expandedRestaurantId = null;
 
     // Safety Lock Mode State
+    // EDITING PASSWORD: Set your desired password between the quotes below.
+    const EDIT_PASSWORD = "dpm";
+
     let isEditingLocked = true;
     let pendingLockAction = null;
 
@@ -1190,8 +1197,23 @@
         actionCallback();
       } else {
         pendingLockAction = actionCallback;
-        document.getElementById("lockConfirmModal").classList.add("active");
+        openLockConfirmModal();
       }
+    }
+
+    function openLockConfirmModal() {
+      const passwordInput = document.getElementById("lockPasswordInput");
+      if (passwordInput) {
+        passwordInput.value = "";
+      }
+      const errorDiv = document.getElementById("lockPasswordError");
+      if (errorDiv) {
+        errorDiv.style.display = "none";
+      }
+      document.getElementById("lockConfirmModal").classList.add("active");
+      setTimeout(() => {
+        if (passwordInput) passwordInput.focus();
+      }, 100);
     }
 
     function closeLockConfirmModal() {
@@ -1199,7 +1221,43 @@
       pendingLockAction = null;
     }
 
+    function handleLockPasswordKeydown(e) {
+      if (e.key === "Enter") {
+        confirmUnlockAndExecute();
+      }
+    }
+
+    function handleLockToggleClick(checkbox) {
+      if (checkbox.checked) {
+        // User checked the toggle trying to UNLOCK
+        // Set checked back to false temporarily until authorized via password
+        checkbox.checked = false;
+        openLockConfirmModal();
+      } else {
+        // User unchecked the toggle to LOCK
+        setLockState(true);
+      }
+    }
+
     function confirmUnlockAndExecute() {
+      const passwordInput = document.getElementById("lockPasswordInput");
+      const errorDiv = document.getElementById("lockPasswordError");
+      const password = (passwordInput ? passwordInput.value : "").trim();
+      
+      if (password !== EDIT_PASSWORD) {
+        if (errorDiv) {
+          errorDiv.style.display = "block";
+        }
+        if (passwordInput) {
+          passwordInput.select();
+        }
+        return; // Reject unlock
+      }
+
+      if (errorDiv) {
+        errorDiv.style.display = "none";
+      }
+      
       setLockState(false);
       document.getElementById("lockConfirmModal").classList.remove("active");
       if (pendingLockAction) {
