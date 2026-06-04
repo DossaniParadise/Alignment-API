@@ -940,7 +940,7 @@
           <span style="font-size: 0.72rem; color: #64748b; font-weight: 500;">Sort:</span>
           <select class="control-select" id="restaurantSortSelect" onchange="changeRestaurantSort(this.value)" style="flex: 1; max-width: 150px; padding: 3px 6px; font-size: 0.72rem;">
             <option value="none">Default (As Is)</option>
-            <option value="name_asc">Name (A-Z)</option>
+            <option value="name_asc" selected>Name (A-Z)</option>
             <option value="name_desc">Name (Z-A)</option>
             <option value="number_asc">Store Number (Asc)</option>
             <option value="number_desc">Store Number (Desc)</option>
@@ -1302,7 +1302,7 @@
     // Sorting & Searching state
     let coachSortMode = "none"; // 'none', 'asc', 'desc'
     let restaurantSearchQuery = "";
-    let restaurantSortMode = "none"; // 'none', 'name_asc', 'name_desc', 'number_asc', 'number_desc'
+    let restaurantSortMode = "name_asc"; // 'none', 'name_asc', 'name_desc', 'number_asc', 'number_desc'
 
     // Original loaded baseline for net history delta analysis
     let initialCoaches = {};
@@ -1415,16 +1415,127 @@
       renderAll();
     }
 
+    // Helper to format/normalize store number digits (pads single, 3, or 4 digit numbers)
+    function formatStoreNumberDigits(storeNumStr) {
+      if (!storeNumStr) return "";
+      const cleaned = String(storeNumStr).trim();
+      if (!cleaned || cleaned === '#') return '#';
+      
+      const digits = cleaned.replace(/\D/g, '');
+      if (!digits) return cleaned; // fallback if no digits (e.g. letters only)
+      
+      let paddedDigits = digits;
+      if (digits.length === 1) {
+        paddedDigits = '0' + digits; // e.g. 3 -> 03
+      } else if (digits.length === 3) {
+        paddedDigits = '00' + digits; // e.g. 390 -> 00390
+      } else if (digits.length === 4) {
+        paddedDigits = '0' + digits; // e.g. 2390 -> 02390
+      }
+      
+      // Determine what matching prefix is appropriate
+      const lower = cleaned.toLowerCase();
+      if (lower.startsWith('qs #')) {
+        return 'QS #' + paddedDigits;
+      } else if (lower.startsWith('bk #')) {
+        return 'BK #' + paddedDigits;
+      } else if (cleaned.startsWith('#')) {
+        return '#' + paddedDigits;
+      } else {
+        return '#' + paddedDigits; // Default prefix for pure digits
+      }
+    }
+
+    // Clean up store suffix by removing company brand tokens and store numbers
+    function cleanStoreSuffix(storeName) {
+      if (!storeName) return "";
+      let s = storeName.trim();
+      
+      // Remove company prefixes (case-insensitive)
+      s = s.replace(/burger\s*king/gi, '');
+      s = s.replace(/paradise\s*quick\s*stop/gi, '');
+      s = s.replace(/paradise\s*qs/gi, '');
+      s = s.replace(/al's\s*quick\s*stop(?:\s*inc\.?)?/gi, '');
+      s = s.replace(/als\s*quick\s*stop(?:\s*inc\.?)?/gi, '');
+      s = s.replace(/buddy's\s*enterprises\s*inc\.?/gi, '');
+      s = s.replace(/nirmal\s*&\s*armaan\s*enterprises\s*inc\.?/gi, '');
+      
+      // Remove anything resembling '#XXXX' or numbers since they are the store number
+      s = s.replace(/#[0-9a-zA-Z_-]+/g, '');
+      // Remove standalone numbers if they look like a store number matching
+      s = s.replace(/\b\d+\b/g, '');
+      
+      // Clean up delimiters and extra spaces
+      s = s.replace(/[-\s•.,/#]+$/, ''); // trailing delimiters
+      s = s.replace(/^[-\s•.,/#]+/, ''); // leading delimiters
+      s = s.replace(/\s+/g, ' ').trim();
+      
+      return s;
+    }
+
     // Short store name helper for collapsed view
     function getShortStoreName(storeName, storeNumber) {
       if (!storeName) return "";
-      let name = storeName;
+      
+      const sName = storeName.trim();
+      const lowerName = sName.toLowerCase();
+      
+      let isParadise = lowerName.includes("paradise quick stop") || lowerName.includes("paradise qs") || lowerName.includes("pqs");
+      let isBurgerKing = lowerName.includes("burger king") || lowerName.includes("bk ");
+      
+      // Get core store number
+      let numPart = "";
       if (storeNumber && storeNumber !== '#') {
-        name = name.replace(storeNumber, '').trim();
+        numPart = storeNumber;
+      } else {
+        // try to extract from name
+        const hashMatch = sName.match(/#([A-Za-z0-9-]+)/);
+        if (hashMatch) {
+          numPart = "#" + hashMatch[1];
+        } else {
+          const numericMatch = sName.match(/\d+/);
+          if (numericMatch) {
+            numPart = "#" + numericMatch[0];
+          }
+        }
       }
-      name = name.replace(/#[A-Za-z0-9_-]+/g, '').trim();
-      name = name.replace(/\s+/g, ' ');
-      return name || storeName;
+      
+      // Format store number using our padding rules
+      const formattedNum = formatStoreNumberDigits(numPart);
+      
+      // Extract original suffix clean name
+      const suffix = cleanStoreSuffix(sName);
+      
+      if (isParadise) {
+        // For Paradise Quick Stop, if we have formatted number, e.g. "QS #03" or "#03"
+        let bareNum = formattedNum.replace(/^(qs\s*#|bk\s*#|#)/i, '').trim();
+        if (bareNum.length === 1) bareNum = "0" + bareNum;
+        const numStr = "PQS #" + bareNum;
+        if (suffix) {
+          return numStr + " " + suffix;
+        }
+        return numStr;
+      }
+      
+      if (isBurgerKing) {
+        let bareNum = formattedNum.replace(/^(qs\s*#|bk\s*#|#)/i, '').trim();
+        if (bareNum.length === 1) bareNum = "0" + bareNum;
+        const numStr = "BK #" + bareNum;
+        if (suffix) {
+          return numStr + " " + suffix;
+        }
+        return numStr;
+      }
+      
+      // Default for any other store of different format
+      if (formattedNum) {
+        if (suffix) {
+          return suffix + " " + formattedNum;
+        }
+        return sName;
+      }
+      
+      return sName;
     }
 
     // Render operations column
@@ -1697,17 +1808,38 @@
         });
       }
 
+      // Helper to get brand-prefix + clean-suffix name for A-Z sort comparison
+      const getSortName = (id) => {
+        const rest = restaurants[id];
+        if (!rest) return "";
+        const lowerName = (rest.storeName || "").toLowerCase();
+        
+        let brandPrefix = "";
+        if (lowerName.includes("burger king") || lowerName.includes("bk ")) {
+          brandPrefix = "bk";
+        } else if (lowerName.includes("paradise quick") || lowerName.includes("paradise qs") || lowerName.includes("pqs")) {
+          brandPrefix = "pqs";
+        }
+        
+        const suffix = cleanStoreSuffix(rest.storeName || "").toLowerCase();
+        
+        if (brandPrefix) {
+          return brandPrefix + " " + suffix;
+        }
+        return suffix || lowerName;
+      };
+
       // 2. Sorting Code
       if (restaurantSortMode === "name_asc") {
         keys.sort((a, b) => {
-          const nameA = (restaurants[a].storeName || "").toLowerCase();
-          const nameB = (restaurants[b].storeName || "").toLowerCase();
+          const nameA = getSortName(a);
+          const nameB = getSortName(b);
           return nameA.localeCompare(nameB);
         });
       } else if (restaurantSortMode === "name_desc") {
         keys.sort((a, b) => {
-          const nameA = (restaurants[a].storeName || "").toLowerCase();
-          const nameB = (restaurants[b].storeName || "").toLowerCase();
+          const nameA = getSortName(a);
+          const nameB = getSortName(b);
           return nameB.localeCompare(nameA);
         });
       } else if (restaurantSortMode === "number_asc") {
@@ -1717,9 +1849,9 @@
           if (numA !== numB) {
             return numA - numB;
           }
-          const strA = (restaurants[a].storeNumber || "");
-          const strB = (restaurants[b].storeNumber || "");
-          return strA.localeCompare(strB, undefined, { numeric: true });
+          const nameA = getSortName(a);
+          const nameB = getSortName(b);
+          return nameA.localeCompare(nameB);
         });
       } else if (restaurantSortMode === "number_desc") {
         keys.sort((a, b) => {
@@ -1728,9 +1860,9 @@
           if (numA !== numB) {
             return numB - numA;
           }
-          const strA = (restaurants[a].storeNumber || "");
-          const strB = (restaurants[b].storeNumber || "");
-          return strB.localeCompare(strA, undefined, { numeric: true });
+          const nameA = getSortName(a);
+          const nameB = getSortName(b);
+          return nameB.localeCompare(nameA);
         });
       }
 
@@ -2212,7 +2344,7 @@
       } else if (type === "restaurant") {
         updates[`restaurants/${id}`] = {
           id: id,
-          storeNumber: document.getElementById("inputStoreNumber").value,
+          storeNumber: formatStoreNumberDigits(document.getElementById("inputStoreNumber").value) || '#',
           storeName: document.getElementById("inputStoreName").value,
           storeManager: document.getElementById("inputStoreManager").value,
           address: document.getElementById("inputAddress").value,
@@ -2560,10 +2692,8 @@
           }
         }
         
-        // Ensure storeNumber has '#' prefix if it is numeric
-        if (storeNumber && !storeNumber.startsWith('#') && !isNaN(storeNumber.replace(/\D/g, ''))) {
-          storeNumber = '#' + storeNumber;
-        }
+        // Ensure storeNumber leading zeros / prefix normalized
+        storeNumber = formatStoreNumberDigits(storeNumber);
         
         // Reconstruct Clean combined address
         let addressParts = [];
