@@ -898,18 +898,42 @@
   <!-- ==================================================================== -->
   <main class="dashboard-container">
     
-    <!-- LEFT COLUMN - DIRECTORS -->
-    <section class="column">
-      <div class="column-header">
-        <div class="column-title">
-          Directors of Operations
-          <span class="column-counter" id="directorCount">0</span>
+    <!-- LEFT COLUMN - DIRECTORS & TECHNICIANS -->
+    <section class="column" style="display: flex; flex-direction: column;">
+      <!-- Directors of Operations (Top Half) -->
+      <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden; border-bottom: 2px solid var(--neutral-border);">
+        <div class="column-header">
+          <div class="column-title">
+            Directors of Operations
+            <span class="column-counter" id="directorCount">0</span>
+          </div>
+          <button class="btn btn-primary btn-xs" onclick="openCreateModal('director')">+ Add</button>
         </div>
-        <button class="btn btn-primary btn-xs" onclick="openCreateModal('director')">+ Add</button>
+
+        <div class="cards-list" id="directorsList" style="flex: 1; overflow-y: auto;">
+          <!-- Directors loaded dynamically by database listeners -->
+        </div>
       </div>
 
-      <div class="cards-list" id="directorsList">
-        <!-- Directors loaded dynamically by database listeners -->
+      <!-- Repair Technicians (Bottom Half) -->
+      <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+        <div class="column-header">
+          <div class="column-title">
+            Repair Technicians
+            <span class="column-counter" id="technicianCount">0</span>
+          </div>
+          <button class="btn btn-primary btn-xs" onclick="openCreateModal('technician')">+ Add</button>
+        </div>
+
+        <!-- Scoped Technician filter bar if selected -->
+        <div id="technicianFilterBar" class="filter-message-bar" style="display: none;">
+          <span id="technicianFilterText" style="font-weight: 500;">Filtered by Tech</span>
+          <button class="clear-filter-btn" onclick="clearTechnicianFilters()">Show All</button>
+        </div>
+
+        <div class="cards-list" id="techniciansList" style="flex: 1; overflow-y: auto;" ondragover="handleDragOverList(event)" ondragleave="handleDragLeaveList(event)" ondrop="handleDropOnTechnicianList(event)">
+          <!-- Repair Technicians loaded dynamically by database listeners -->
+        </div>
       </div>
     </section>
 
@@ -949,11 +973,11 @@
     <section class="column">
       <div class="column-header">
         <div class="column-title">
-          Restaurants
+          Stores
           <span class="column-counter" id="restaurantCount">0</span>
         </div>
         <div style="display: flex;">
-          <button class="btn btn-primary btn-xs" onclick="openCreateModal('restaurant')">+ Add</button>
+          <button class="btn btn-primary btn-xs" onclick="openCreateModal('restaurant')">+ Add Store</button>
           <button class="btn btn-success btn-xs" onclick="openBatchImportModal()" style="margin-left: 6px;">Batch Import</button>
         </div>
       </div>
@@ -1221,14 +1245,17 @@
     let directors = {};
     let areaCoaches = {};
     let restaurants = {};
+    let repairTechnicians = {};
 
     let selectedDirectorId = null;
     let selectedCoachId = null;
+    let selectedTechnicianId = null;
 
     // Card inline expansion state tracking (Only one expanded card per column is allowed)
     let expandedDirectorId = null;
     let expandedCoachId = null;
     let expandedRestaurantId = null;
+    let expandedTechnicianId = null;
 
     // Safety Lock Mode State
     // EDITING PASSWORD: Set your desired password between the quotes below.
@@ -1338,17 +1365,19 @@
     // Original loaded baseline for net history delta analysis
     let initialCoaches = {};
     let initialRestaurants = {};
+    let initialTechnicians = {};
     let initialLoadCaptured = false;
-    let loadedPaths = { directors: false, areaCoaches: false, restaurants: false };
+    let loadedPaths = { directors: false, areaCoaches: false, restaurants: false, repairTechnicians: false };
 
     // Realtime change event logs timestamps
     const changeTimestamps = {};
 
     function checkInitialLoadCaptured() {
-      if (!initialLoadCaptured && loadedPaths.directors && loadedPaths.areaCoaches && loadedPaths.restaurants) {
+      if (!initialLoadCaptured && loadedPaths.directors && loadedPaths.areaCoaches && loadedPaths.restaurants && loadedPaths.repairTechnicians) {
         // Clone exact nested data snapshot of assignments on page load
         initialCoaches = JSON.parse(JSON.stringify(areaCoaches));
         initialRestaurants = JSON.parse(JSON.stringify(restaurants));
+        initialTechnicians = JSON.parse(JSON.stringify(repairTechnicians));
         initialLoadCaptured = true;
         console.log("Original org baseline captured for change tracking!", initialCoaches, initialRestaurants);
         renderHistory();
@@ -1400,6 +1429,13 @@
       checkInitialLoadCaptured();
     });
 
+    db.ref("repairTechnicians").on("value", (snapshot) => {
+      repairTechnicians = snapshot.val() || {};
+      loadedPaths.repairTechnicians = true;
+      renderAll();
+      checkInitialLoadCaptured();
+    });
+
     db.ref("restaurants").on("value", (snapshot) => {
       restaurants = snapshot.val() || {};
       loadedPaths.restaurants = true;
@@ -1412,6 +1448,7 @@
     // ==========================================
     function renderAll() {
       renderDirectors();
+      renderTechnicians();
       renderCoaches();
       renderRestaurants();
       renderHistory();
@@ -1420,6 +1457,7 @@
 
     // Toggle expansion inline (Only one allowed expanded per column at a time)
     function toggleDirectorExpand(dirId) {
+      if (window.getSelection().toString()) return; // Stop toggle if user is selecting text to copy
       if (expandedDirectorId === dirId) {
         expandedDirectorId = null;
       } else {
@@ -1429,6 +1467,7 @@
     }
 
     function toggleCoachExpand(coachId) {
+      if (window.getSelection().toString()) return; // Stop toggle if user is selecting text to copy
       if (expandedCoachId === coachId) {
         expandedCoachId = null;
       } else {
@@ -1438,11 +1477,42 @@
     }
 
     function toggleRestaurantExpand(restId) {
+      if (window.getSelection().toString()) return; // Stop toggle if user is selecting text to copy
       if (expandedRestaurantId === restId) {
         expandedRestaurantId = null;
       } else {
         expandedRestaurantId = restId;
       }
+      renderAll();
+    }
+
+    function toggleTechnicianExpand(techId) {
+      if (window.getSelection().toString()) return; // Stop toggle if user is selecting text to copy
+      if (expandedTechnicianId === techId) {
+        expandedTechnicianId = null;
+      } else {
+        expandedTechnicianId = techId;
+      }
+      selectTechnician(techId);
+    }
+
+    function selectTechnician(id) {
+      if (selectedTechnicianId === id) {
+        selectedTechnicianId = null;
+      } else {
+        selectedTechnicianId = id;
+        // Exclusive filtering: clear operations/coaches filters when technician is selected
+        selectedDirectorId = null;
+        selectedCoachId = null;
+        expandedDirectorId = null;
+        expandedCoachId = null;
+      }
+      renderAll();
+    }
+
+    function clearTechnicianFilters() {
+      selectedTechnicianId = null;
+      expandedTechnicianId = null;
       renderAll();
     }
 
@@ -1631,6 +1701,68 @@
       });
     }
 
+    // Render repair technicians column (bottom half of Column 1)
+    function renderTechnicians() {
+      const listDiv = document.getElementById("techniciansList");
+      const countSpan = document.getElementById("technicianCount");
+      const keys = Object.keys(repairTechnicians);
+      
+      countSpan.innerText = keys.length;
+      listDiv.innerHTML = "";
+
+      if (keys.length === 0) {
+        listDiv.innerHTML = `<div class="card" style="text-align: center; color: var(--text-muted); pointer-events: none;">No Repair Technicians. Click + Add</div>`;
+        return;
+      }
+
+      keys.forEach((techId) => {
+        const tech = repairTechnicians[techId];
+        const isSelected = selectedTechnicianId === techId;
+        const isExpanded = expandedTechnicianId === techId;
+        
+        const card = document.createElement("div");
+        card.className = `card ${isSelected ? 'selected' : ''}`;
+        card.setAttribute("data-id", techId);
+        card.setAttribute("data-type", "technician");
+        
+        // Click toggles inline expansion and active filtering
+        card.addEventListener("click", () => toggleTechnicianExpand(techId));
+        card.addEventListener("dragover", handleDragOverCard);
+        card.addEventListener("dragleave", handleDragLeaveCard);
+        card.addEventListener("drop", handleDropOnTechnicianCard);
+
+        if (isExpanded) {
+          card.innerHTML = `
+            <div class="card-header-row">
+              <div class="card-title">${escapeHtml(tech.name)} <span style="font-weight: normal; color: #3b82f6; font-size: 0.72rem; margin-left: 4px;">(Active)</span></div>
+              <div class="card-actions">
+                <button class="btn btn-icon btn-icon-edit" onclick="event.stopPropagation(); openEditModal('technician', '${techId}')">✎</button>
+                <button class="btn btn-icon btn-icon-delete" onclick="event.stopPropagation(); deleteEntry('technician', '${techId}')">✕</button>
+              </div>
+            </div>
+            <div class="card-details-block" onmousedown="event.stopPropagation();" onclick="event.stopPropagation();" style="pointer-events: auto !important; margin-top: 6px;">
+              <div class="card-detail" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <span>✉ ${escapeHtml(tech.email || 'No email')}</span>
+                ${tech.email ? `<button class="copy-btn-mini" onclick="copyTextToClipboard(this.getAttribute('data-text'), this)" data-text="${escapeHtml(tech.email)}">📋 Copy</button>` : ''}
+              </div>
+              <div class="card-detail" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <span>☎ ${escapeHtml(formatPhoneNumber(tech.phone) || 'No phone')}</span>
+                ${tech.phone ? `<button class="copy-btn-mini" onclick="copyTextToClipboard(this.getAttribute('data-text'), this)" data-text="${escapeHtml(formatPhoneNumber(tech.phone))}">📋 Copy</button>` : ''}
+              </div>
+            </div>
+          `;
+        } else {
+          card.innerHTML = `
+            <div class="card-header-row" style="margin-bottom: 0; align-items: center;">
+              <div class="card-title">${escapeHtml(tech.name)}</div>
+              <span style="font-size: 0.65rem; color: #a1a1aa; font-weight: 500;">Click to reveal</span>
+            </div>
+          `;
+        }
+        listDiv.appendChild(card);
+      });
+    }
+
     // Render area coaches column
     function renderCoaches() {
       const listDiv = document.getElementById("coachesList");
@@ -1787,7 +1919,7 @@
         listDiv.innerHTML = "";
 
         if (directReportKeys.length === 0 && coachReportKeys.length === 0) {
-          listDiv.innerHTML = `<div class="card" style="text-align: center; color: var(--text-muted); pointer-events: none;">No Restaurants matched the search or structure under this Director.</div>`;
+          listDiv.innerHTML = `<div class="card" style="text-align: center; color: var(--text-muted); pointer-events: none;">No Stores matched the search under this Director.</div>`;
           return;
         }
 
@@ -1810,6 +1942,13 @@
           listDiv.appendChild(header);
           renderRestaurantListPlain(coachReportKeys, listDiv);
         }
+      } else if (selectedTechnicianId) {
+        // Filter by specific Repair Technician
+        keys = keys.filter(id => restaurants[id].assignedRepairTechnicianId === selectedTechnicianId);
+        keys = filterAndSortRestaurantKeys(keys);
+        countSpan.innerText = keys.length;
+        listDiv.innerHTML = "";
+        renderRestaurantListPlain(keys, listDiv);
       } else {
         // Render raw list if no active filters
         keys = filterAndSortRestaurantKeys(keys);
@@ -1855,69 +1994,71 @@
         });
       }
 
-      // Helper to get brand-prefix + clean-suffix name for A-Z sort comparison
-      const getSortName = (id) => {
+      // Helper to parse clean numeric value of store number
+      const getStoreNum = (id) => {
         const rest = restaurants[id];
-        if (!rest) return "";
-        const lowerName = (rest.storeName || "").toLowerCase();
-        
-        let brandPrefix = "";
-        if (lowerName.includes("burger king") || lowerName.includes("bk ")) {
-          brandPrefix = "bk";
-        } else if (lowerName.includes("paradise quick") || lowerName.includes("paradise qs") || lowerName.includes("pqs")) {
-          brandPrefix = "pqs";
-        }
-        
-        let suffix = cleanStoreSuffix(rest.storeName || "").toLowerCase();
-        
-        // Fix: If suffix is empty (e.g. "Paradise Quick Stop #18" has no location suffix),
-        // we use its store number digits padded with leading zeros to maintain precise numerical sorting.
-        if (!suffix) {
-          const numStr = rest.storeNumber || "";
-          const digits = numStr.replace(/\D/g, "");
-          suffix = digits.padStart(5, "0");
-        }
-        
-        if (brandPrefix) {
-          return brandPrefix + " " + suffix;
-        }
-        return suffix || lowerName;
+        if (!rest || !rest.storeNumber) return 0;
+        const digits = rest.storeNumber.replace(/\D/g, "");
+        return parseInt(digits, 10) || 0;
       };
 
       // 2. Sorting Code
-      if (restaurantSortMode === "name_asc") {
+      if (restaurantSortMode === "name_asc" || restaurantSortMode === "name_desc") {
+        const isDesc = restaurantSortMode === "name_desc";
         keys.sort((a, b) => {
-          const nameA = getSortName(a);
-          const nameB = getSortName(b);
-          return nameA.localeCompare(nameB);
-        });
-      } else if (restaurantSortMode === "name_desc") {
-        keys.sort((a, b) => {
-          const nameA = getSortName(a);
-          const nameB = getSortName(b);
-          return nameB.localeCompare(nameA);
-        });
-      } else if (restaurantSortMode === "number_asc") {
-        keys.sort((a, b) => {
-          const numA = parseFloat((restaurants[a].storeNumber || "").replace(/\D/g, '')) || 0;
-          const numB = parseFloat((restaurants[b].storeNumber || "").replace(/\D/g, '')) || 0;
-          if (numA !== numB) {
-            return numA - numB;
+          const rA = restaurants[a];
+          const rB = restaurants[b];
+          if (!rA || !rB) return 0;
+
+          const nameA = (rA.storeName || "").toLowerCase();
+          const nameB = (rB.storeName || "").toLowerCase();
+
+          const isBKA = nameA.includes("burger king") || nameA.includes("bk ");
+          const isBKB = nameB.includes("burger king") || nameB.includes("bk ");
+
+          const isPQSA = nameA.includes("paradise quick stop") || nameA.includes("paradise qs") || nameA.includes("pqs");
+          const isPQSB = nameB.includes("paradise quick stop") || nameB.includes("paradise qs") || nameB.includes("pqs");
+
+          let result = 0;
+
+          if (isBKA && isBKB) {
+            // Both BK: Alphabetical sort by clean location suffix
+            const suffixA = cleanStoreSuffix(rA.storeName).toLowerCase();
+            const suffixB = cleanStoreSuffix(rB.storeName).toLowerCase();
+            result = suffixA.localeCompare(suffixB);
+          } else if (isPQSA && isPQSB) {
+            // Both PQS: Numerical sort by store number digits always
+            result = getStoreNum(a) - getStoreNum(b);
+          } else if (isBKA && isPQSB) {
+            result = -1; // BK comes before PQS
+          } else if (isPQSA && isBKB) {
+            result = 1;  // PQS comes after BK
+          } else {
+            // Fallback for others
+            const suffixA = cleanStoreSuffix(rA.storeName).toLowerCase() || nameA;
+            const suffixB = cleanStoreSuffix(rB.storeName).toLowerCase() || nameB;
+            result = suffixA.localeCompare(suffixB);
           }
-          const nameA = getSortName(a);
-          const nameB = getSortName(b);
-          return nameA.localeCompare(nameB);
+
+          return isDesc ? -result : result;
         });
-      } else if (restaurantSortMode === "number_desc") {
+      } else if (restaurantSortMode === "number_asc" || restaurantSortMode === "number_desc") {
+        const isDesc = restaurantSortMode === "number_desc";
         keys.sort((a, b) => {
-          const numA = parseFloat((restaurants[a].storeNumber || "").replace(/\D/g, '')) || 0;
-          const numB = parseFloat((restaurants[b].storeNumber || "").replace(/\D/g, '')) || 0;
+          const numA = getStoreNum(a);
+          const numB = getStoreNum(b);
+          let result = 0;
+
           if (numA !== numB) {
-            return numB - numA;
+            result = numA - numB;
+          } else {
+            // Tie breaker: Alphabetical name comparison
+            const nameA = (restaurants[a].storeName || "").toLowerCase();
+            const nameB = (restaurants[b].storeName || "").toLowerCase();
+            result = nameA.localeCompare(nameB);
           }
-          const nameA = getSortName(a);
-          const nameB = getSortName(b);
-          return nameB.localeCompare(nameA);
+
+          return isDesc ? -result : result;
         });
       }
 
@@ -1931,7 +2072,7 @@
         dummy.style.textAlign = "center";
         dummy.style.color = "var(--text-muted)";
         dummy.style.pointerEvents = "none";
-        dummy.innerText = "No assigned restaurants.";
+        dummy.innerText = "No assigned stores.";
         parentContainer.appendChild(dummy);
         return;
       }
@@ -1948,7 +2089,7 @@
         card.setAttribute("data-id", restId);
         card.setAttribute("data-type", "restaurant");
 
-        // Click to expand restaurant details inline
+        // Click to expand details inline
         card.addEventListener("click", () => toggleRestaurantExpand(restId));
 
         // Drag handlers
@@ -2001,6 +2142,10 @@
               <div class="assignment-tags" style="margin-top: 4px;">
                 ${dirName ? `<span class="relation-badge badge-director">Dir: ${escapeHtml(dirName)}</span>` : ''}
                 ${coachName ? `<span class="relation-badge badge-coach">Coach: ${escapeHtml(coachName)}</span>` : '<span class="relation-badge badge-unassigned">Direct Report</span>'}
+                ${rest.assignedRepairTechnicianId && repairTechnicians[rest.assignedRepairTechnicianId] 
+                  ? `<span class="relation-badge" style="background-color: #f59e0b; color: #ffffff; border: 1px solid #d97706;">🛠 Tech: ${escapeHtml(repairTechnicians[rest.assignedRepairTechnicianId].name)}</span>` 
+                  : ''
+                }
               </div>
             </div>
           `;
@@ -2055,8 +2200,8 @@
       if (draggedElementData.type === 'coach' && targetType === 'director') {
         e.currentTarget.classList.add("drag-hover-target");
       }
-      // 2. Restaurant can drop on Director or Coach
-      if (draggedElementData.type === 'restaurant' && (targetType === 'director' || targetType === 'coach')) {
+      // 2. Restaurant can drop on Director, Coach, or Technician
+      if (draggedElementData.type === 'restaurant' && (targetType === 'director' || targetType === 'coach' || targetType === 'technician')) {
         e.currentTarget.classList.add("drag-hover-target");
       }
     }
@@ -2071,6 +2216,7 @@
       e.currentTarget.classList.add("drag-hover");
     }
 
+    // LIST PANEL BACKGROUND DROPS (Dropping onto empty lists allows assignment reset)
     function handleDragLeaveList(e) {
       e.currentTarget.classList.remove("drag-hover");
     }
@@ -2129,6 +2275,27 @@
       }
     }
 
+    // DROP: Restaurant dropped on a Technician card
+    function handleDropOnTechnicianCard(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.currentTarget.classList.remove("drag-hover-target");
+
+      if (!draggedElementData) return;
+      const targetTechnicianId = e.currentTarget.getAttribute("data-id");
+      const elemId = draggedElementData.id;
+      const elemType = draggedElementData.type;
+
+      if (elemType === "restaurant") {
+        performLockedAction(() => {
+          trackChangeTimestamp(elemId);
+          db.ref(`restaurants/${elemId}`).update({
+            assignedRepairTechnicianId: targetTechnicianId
+          });
+        });
+      }
+    }
+
     // DROP: dropping Coach onto empty layout space to clear their assigned Director
     function handleDropOnCoachList(e) {
       e.preventDefault();
@@ -2162,6 +2329,22 @@
       }
     }
 
+    // DROP: dropping Restaurant onto empty technician list to clear assigned Repair Technician
+    function handleDropOnTechnicianList(e) {
+      e.preventDefault();
+      e.currentTarget.classList.remove("drag-hover");
+
+      if (draggedElementData && draggedElementData.type === "restaurant") {
+        const elemId = draggedElementData.id;
+        performLockedAction(() => {
+          trackChangeTimestamp(elemId);
+          db.ref(`restaurants/${elemId}`).update({
+            assignedRepairTechnicianId: ""
+          });
+        });
+      }
+    }
+
     // ==========================================
     // 6. SELECTION FILTERS ACTIONS
     // ==========================================
@@ -2173,6 +2356,7 @@
       } else {
         selectedDirectorId = id;
         selectedCoachId = null; // reset sub coach
+        selectedTechnicianId = null; // reset technician
       }
       renderAll();
     }
@@ -2184,6 +2368,7 @@
         selectedCoachId = null;
       } else {
         selectedCoachId = id;
+        selectedTechnicianId = null; // reset technician
       }
       renderAll();
     }
@@ -2193,6 +2378,8 @@
       const coachFilterText = document.getElementById("coachFilterText");
       const restaurantFilterBar = document.getElementById("restaurantFilterBar");
       const restaurantFilterText = document.getElementById("restaurantFilterText");
+      const technicianFilterBar = document.getElementById("technicianFilterBar");
+      const technicianFilterText = document.getElementById("technicianFilterText");
 
       if (selectedDirectorId) {
         const dir = directors[selectedDirectorId];
@@ -2216,8 +2403,26 @@
           restaurantFilterBar.style.display = "flex";
           restaurantFilterText.innerHTML = `Showing stores of Coach <strong>${escapeHtml(coachName)}</strong>`;
         }
+      } else if (selectedTechnicianId) {
+        const tech = repairTechnicians[selectedTechnicianId];
+        const techName = tech ? tech.name : "Selected Technician";
+        if (restaurantFilterBar) {
+          restaurantFilterBar.style.display = "flex";
+          restaurantFilterText.innerHTML = `Showing stores of Tech <strong>${escapeHtml(techName)}</strong>`;
+        }
       } else if (!selectedDirectorId) {
         if (restaurantFilterBar) restaurantFilterBar.style.display = "none";
+      }
+
+      if (selectedTechnicianId) {
+        const tech = repairTechnicians[selectedTechnicianId];
+        const techName = tech ? tech.name : "Selected Technician";
+        if (technicianFilterBar) {
+          technicianFilterBar.style.display = "flex";
+          technicianFilterText.innerHTML = `Filtered by Tech: <strong>${escapeHtml(techName)}</strong>`;
+        }
+      } else {
+        if (technicianFilterBar) technicianFilterBar.style.display = "none";
       }
     }
 
@@ -2232,8 +2437,10 @@
     function clearRestaurantFilters() {
       selectedDirectorId = null;
       selectedCoachId = null;
+      selectedTechnicianId = null;
       expandedDirectorId = null;
       expandedCoachId = null;
+      expandedTechnicianId = null;
       
       // Also reset searching
       const searchInput = document.getElementById("restaurantSearchInput");
@@ -2292,7 +2499,8 @@
         document.getElementById("crudForm").reset();
         document.getElementById("formType").value = type;
         document.getElementById("formId").value = "";
-        document.getElementById("modalTitle").innerText = `Add New ${capitalize(type)}`;
+        const titleText = type === "restaurant" ? "Add New Store" : type === "technician" ? "Add Repair Technician" : `Add New ${capitalize(type)}`;
+        document.getElementById("modalTitle").innerText = titleText;
         
         setupFormFields(type);
         document.getElementById("crudModal").classList.add("active");
@@ -2304,13 +2512,19 @@
         document.getElementById("crudForm").reset();
         document.getElementById("formType").value = type;
         document.getElementById("formId").value = id;
-        document.getElementById("modalTitle").innerText = `Edit ${capitalize(type)}`;
+        const titleText = type === "restaurant" ? "Edit Store" : type === "technician" ? "Edit Repair Technician" : `Edit ${capitalize(type)}`;
+        document.getElementById("modalTitle").innerText = titleText;
         
         setupFormFields(type);
 
         // Populate Form inputs
         if (type === "director") {
           const item = directors[id];
+          document.getElementById("inputName").value = item.name || "";
+          document.getElementById("inputEmail").value = item.email || "";
+          document.getElementById("inputPhone").value = item.phone || "";
+        } else if (type === "technician") {
+          const item = repairTechnicians[id];
           document.getElementById("inputName").value = item.name || "";
           document.getElementById("inputEmail").value = item.email || "";
           document.getElementById("inputPhone").value = item.phone || "";
@@ -2354,7 +2568,7 @@
       document.getElementById("groupLatitude").style.display = type === "restaurant" ? "block" : "none";
       document.getElementById("groupLongitude").style.display = type === "restaurant" ? "block" : "none";
       
-      document.getElementById("groupAssignedDirector").style.display = type !== "director" ? "block" : "none";
+      document.getElementById("groupAssignedDirector").style.display = type === "coach" || type === "restaurant" ? "block" : "none";
       document.getElementById("groupAssignedCoach").style.display = type === "restaurant" ? "block" : "none";
     }
 
@@ -2396,12 +2610,19 @@
       e.preventDefault();
       
       const type = document.getElementById("formType").value;
-      const id = document.getElementById("formId").value || db.ref(type === "director" ? "directors" : type === "coach" ? "areaCoaches" : "restaurants").push().key;
+      const id = document.getElementById("formId").value || db.ref(type === "director" ? "directors" : type === "coach" ? "areaCoaches" : type === "technician" ? "repairTechnicians" : "restaurants").push().key;
 
       const updates = {};
       
       if (type === "director") {
         updates[`directors/${id}`] = {
+          id: id,
+          name: document.getElementById("inputName").value,
+          email: document.getElementById("inputEmail").value,
+          phone: formatPhoneNumber(document.getElementById("inputPhone").value)
+        };
+      } else if (type === "technician") {
+        updates[`repairTechnicians/${id}`] = {
           id: id,
           name: document.getElementById("inputName").value,
           email: document.getElementById("inputEmail").value,
@@ -2416,6 +2637,7 @@
           assignedDirectorId: document.getElementById("selectAssignedDirector").value
         };
       } else if (type === "restaurant") {
+        const existingTech = (restaurants[id] && restaurants[id].assignedRepairTechnicianId) ? restaurants[id].assignedRepairTechnicianId : "";
         updates[`restaurants/${id}`] = {
           id: id,
           storeNumber: formatStoreNumberDigits(document.getElementById("inputStoreNumber").value) || '#',
@@ -2428,7 +2650,8 @@
           email: document.getElementById("inputEmail").value,
           phone: formatPhoneNumber(document.getElementById("inputPhone").value),
           assignedAreaCoachId: document.getElementById("selectAssignedCoach").value,
-          assignedDirectorId: document.getElementById("selectAssignedDirector").value
+          assignedDirectorId: document.getElementById("selectAssignedDirector").value,
+          assignedRepairTechnicianId: existingTech
         };
       }
 
@@ -2448,7 +2671,8 @@
         const paths = {
           'director': 'directors',
           'coach': 'areaCoaches',
-          'restaurant': 'restaurants'
+          'restaurant': 'restaurants',
+          'technician': 'repairTechnicians'
         };
 
         if (confirm(`Are you absolutely sure you want to remove this ${type}? It will sever current branch dependencies.`)) {
@@ -2456,6 +2680,16 @@
             // If deleted node was active selection, reset filters safely
             if (type === 'director' && selectedDirectorId === id) selectedDirectorId = null;
             if (type === 'coach' && selectedCoachId === id) selectedCoachId = null;
+            if (type === 'technician' && selectedTechnicianId === id) selectedTechnicianId = null;
+
+            // Cleanup references in restaurants
+            if (type === 'technician') {
+              Object.keys(restaurants).forEach(restId => {
+                if (restaurants[restId].assignedRepairTechnicianId === id) {
+                  db.ref(`restaurants/${restId}/assignedRepairTechnicianId`).remove();
+                }
+              });
+            }
             renderAll();
           });
         }
