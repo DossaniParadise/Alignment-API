@@ -321,6 +321,37 @@
       gap: 4px;
     }
 
+    .card-details-block {
+      pointer-events: auto !important;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .copy-btn-mini {
+      background: none;
+      border: 1px solid var(--neutral-border);
+      color: var(--text-muted);
+      cursor: pointer;
+      font-size: 0.62rem;
+      padding: 1px 4px;
+      margin-left: 6px;
+      border-radius: 3px;
+      transition: all 0.1s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 2px;
+      pointer-events: auto !important;
+      background-color: var(--neutral-light);
+      flex-shrink: 0;
+      line-height: 1.2;
+    }
+    .copy-btn-mini:hover {
+      color: var(--primary-color);
+      border-color: #93c5fd;
+      background-color: #eff6ff;
+    }
+
     /* Sub-text relationships */
     .assignment-tags {
       display: flex;
@@ -1577,8 +1608,16 @@
                 <button class="btn btn-icon btn-icon-delete" onclick="event.stopPropagation(); deleteEntry('director', '${dirId}')">✕</button>
               </div>
             </div>
-            <div class="card-detail" style="margin-top: 6px;">✉ ${escapeHtml(dir.email || 'No email')}</div>
-            <div class="card-detail">☎ ${escapeHtml(formatPhoneNumber(dir.phone) || 'No phone')}</div>
+            <div class="card-details-block" onmousedown="event.stopPropagation();" onclick="event.stopPropagation();" style="pointer-events: auto !important; margin-top: 6px;">
+              <div class="card-detail" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <span>✉ ${escapeHtml(dir.email || 'No email')}</span>
+                ${dir.email ? `<button class="copy-btn-mini" onclick="copyTextToClipboard(this.getAttribute('data-text'), this)" data-text="${escapeHtml(dir.email)}">📋 Copy</button>` : ''}
+              </div>
+              <div class="card-detail" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <span>☎ ${escapeHtml(formatPhoneNumber(dir.phone) || 'No phone')}</span>
+                ${dir.phone ? `<button class="copy-btn-mini" onclick="copyTextToClipboard(this.getAttribute('data-text'), this)" data-text="${escapeHtml(formatPhoneNumber(dir.phone))}">📋 Copy</button>` : ''}
+              </div>
+            </div>
           `;
         } else {
           card.innerHTML = `
@@ -1665,10 +1704,18 @@
                 <button class="btn btn-icon btn-icon-delete" onclick="event.stopPropagation(); deleteEntry('coach', '${coachId}')">✕</button>
               </div>
             </div>
-            <div class="card-detail" style="margin-top: 6px;">✉ ${escapeHtml(coach.email || 'No email')}</div>
-            <div class="card-detail">☎ ${escapeHtml(formatPhoneNumber(coach.phone) || 'No phone')}</div>
-            <div class="assignment-tags">
-              ${dirName ? `<span class="relation-badge badge-director">Director: ${escapeHtml(dirName)}</span>` : '<span class="relation-badge badge-unassigned">No Director</span>'}
+            <div class="card-details-block" onmousedown="event.stopPropagation();" onclick="event.stopPropagation();" style="pointer-events: auto !important; margin-top: 6px;">
+              <div class="card-detail" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <span>✉ ${escapeHtml(coach.email || 'No email')}</span>
+                ${coach.email ? `<button class="copy-btn-mini" onclick="copyTextToClipboard(this.getAttribute('data-text'), this)" data-text="${escapeHtml(coach.email)}">📋 Copy</button>` : ''}
+              </div>
+              <div class="card-detail" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <span>☎ ${escapeHtml(formatPhoneNumber(coach.phone) || 'No phone')}</span>
+                ${coach.phone ? `<button class="copy-btn-mini" onclick="copyTextToClipboard(this.getAttribute('data-text'), this)" data-text="${escapeHtml(formatPhoneNumber(coach.phone))}">📋 Copy</button>` : ''}
+              </div>
+              <div class="assignment-tags" style="margin-top: 4px;">
+                ${dirName ? `<span class="relation-badge badge-director">Director: ${escapeHtml(dirName)}</span>` : '<span class="relation-badge badge-unassigned">No Director</span>'}
+              </div>
             </div>
           `;
         } else {
@@ -1821,7 +1868,15 @@
           brandPrefix = "pqs";
         }
         
-        const suffix = cleanStoreSuffix(rest.storeName || "").toLowerCase();
+        let suffix = cleanStoreSuffix(rest.storeName || "").toLowerCase();
+        
+        // Fix: If suffix is empty (e.g. "Paradise Quick Stop #18" has no location suffix),
+        // we use its store number digits padded with leading zeros to maintain precise numerical sorting.
+        if (!suffix) {
+          const numStr = rest.storeNumber || "";
+          const digits = numStr.replace(/\D/g, "");
+          suffix = digits.padStart(5, "0");
+        }
         
         if (brandPrefix) {
           return brandPrefix + " " + suffix;
@@ -1913,21 +1968,40 @@
                 <button class="btn btn-icon btn-icon-delete" onmousedown="event.stopPropagation();" onclick="event.stopPropagation(); deleteEntry('restaurant', '${restId}')" title="Delete">✕</button>
               </div>
             </div>
-            ${rest.entity ? `<div class="card-detail" style="font-weight: 550; color: #1e3a8a; margin-top: 4px;">🏢 Entity: ${escapeHtml(rest.entity)}</div>` : ''}
-            ${rest.storeManager ? `<div class="card-detail" style="font-weight: 600; color: #334155;">👤 Mgr: ${escapeHtml(rest.storeManager)}</div>` : ''}
-            <div class="card-detail">📍 Address: ${escapeHtml(rest.address || 'No address')}</div>
-            <div class="card-detail">☎ Phone: ${escapeHtml(formatPhoneNumber(rest.phone) || 'No phone')}</div>
-            ${(rest.latitude || rest.longitude) ? `
-              <div class="card-detail" style="color: #0369a1; font-weight: 550; display: flex; align-items: center; justify-content: space-between; margin-top: 2px;">
-                <span>🌐 GPS: ${escapeHtml(rest.latitude || 'N/A')}, ${escapeHtml(rest.longitude || 'N/A')}</span>
-                <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([rest.latitude, rest.longitude].filter(Boolean).join(','))}" target="_blank" onmousedown="event.stopPropagation();" onclick="event.stopPropagation();" draggable="false" style="color: #1d4ed8; background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 9999px; padding: 2px 8px; font-weight: 600; text-decoration: none; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 4px; transition: background-color 0.2s, color 0.2s; cursor: pointer;">
-                  Open Map ↗
-                </a>
+            <div class="card-details-block" onmousedown="event.stopPropagation();" onclick="event.stopPropagation();" style="pointer-events: auto !important; margin-top: 4px;">
+              ${rest.entity ? `
+                <div class="card-detail" style="font-weight: 550; color: #1e3a8a; display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                  <span>🏢 Entity: ${escapeHtml(rest.entity)}</span>
+                  <button class="copy-btn-mini" onclick="copyTextToClipboard(this.getAttribute('data-text'), this)" data-text="${escapeHtml(rest.entity)}">📋 Copy</button>
+                </div>` : ''}
+              ${rest.storeManager ? `
+                <div class="card-detail" style="font-weight: 600; color: #334155; display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                  <span>👤 Mgr: ${escapeHtml(rest.storeManager)}</span>
+                  <button class="copy-btn-mini" onclick="copyTextToClipboard(this.getAttribute('data-text'), this)" data-text="${escapeHtml(rest.storeManager)}">📋 Copy</button>
+                </div>` : ''}
+              <div class="card-detail" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <span style="overflow: hidden; text-overflow: ellipsis;">📍 Address: ${escapeHtml(rest.address || 'No address')}</span>
+                ${rest.address ? `<button class="copy-btn-mini" onclick="copyTextToClipboard(this.getAttribute('data-text'), this)" data-text="${escapeHtml(rest.address)}">📋 Copy</button>` : ''}
               </div>
-            ` : ''}
-            <div class="assignment-tags">
-              ${dirName ? `<span class="relation-badge badge-director">Dir: ${escapeHtml(dirName)}</span>` : ''}
-              ${coachName ? `<span class="relation-badge badge-coach">Coach: ${escapeHtml(coachName)}</span>` : '<span class="relation-badge badge-unassigned">Direct Report</span>'}
+              <div class="card-detail" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <span>☎ Phone: ${escapeHtml(formatPhoneNumber(rest.phone) || 'No phone')}</span>
+                ${rest.phone ? `<button class="copy-btn-mini" onclick="copyTextToClipboard(this.getAttribute('data-text'), this)" data-text="${escapeHtml(formatPhoneNumber(rest.phone))}">📋 Copy</button>` : ''}
+              </div>
+              ${(rest.latitude || rest.longitude) ? `
+                <div class="card-detail" style="color: #0369a1; font-weight: 550; display: flex; align-items: center; justify-content: space-between; margin-top: 2px; width: 100%;">
+                  <span style="overflow: hidden; text-overflow: ellipsis;">🌐 GPS: ${escapeHtml(rest.latitude || 'N/A')}, ${escapeHtml(rest.longitude || 'N/A')}</span>
+                  <div style="display: inline-flex; gap: 4px; flex-shrink: 0; align-items: center;">
+                    <button class="copy-btn-mini" onclick="copyTextToClipboard(this.getAttribute('data-text'), this)" data-text="${escapeHtml(rest.latitude)}, ${escapeHtml(rest.longitude)}">📋 Copy</button>
+                    <a href="https://www.google.com/maps/search/?api=1&query=${encodeURIComponent([rest.latitude, rest.longitude].filter(Boolean).join(','))}" target="_blank" onmousedown="event.stopPropagation();" onclick="event.stopPropagation();" draggable="false" style="color: #1d4ed8; background-color: #eff6ff; border: 1px solid #bfdbfe; border-radius: 9999px; padding: 2px 8px; font-weight: 600; text-decoration: none; font-size: 0.75rem; display: inline-flex; align-items: center; gap: 4px; transition: background-color 0.2s, color 0.2s; cursor: pointer;">
+                      Open Map ↗
+                    </a>
+                  </div>
+                </div>
+              ` : ''}
+              <div class="assignment-tags" style="margin-top: 4px;">
+                ${dirName ? `<span class="relation-badge badge-director">Dir: ${escapeHtml(dirName)}</span>` : ''}
+                ${coachName ? `<span class="relation-badge badge-coach">Coach: ${escapeHtml(coachName)}</span>` : '<span class="relation-badge badge-unassigned">Direct Report</span>'}
+              </div>
             </div>
           `;
         } else {
@@ -2893,6 +2967,55 @@
     function capitalize(str) {
       if (!str) return '';
       return str.charAt(0).toUpperCase() + str.slice(1);
+    }
+
+    function copyTextToClipboard(text, btnElement, label = 'Copied') {
+      if (!text) return;
+      navigator.clipboard.writeText(text).then(() => {
+        const origHtml = btnElement.innerHTML;
+        btnElement.innerHTML = `✓ ${label}`;
+        btnElement.style.color = '#10b981'; // green-500
+        btnElement.style.borderColor = '#a7f3d0'; // green-200
+        btnElement.style.backgroundColor = '#ecfdf5'; // green-50
+        btnElement.disabled = true;
+        setTimeout(() => {
+          btnElement.innerHTML = origHtml;
+          btnElement.style.color = '';
+          btnElement.style.borderColor = '';
+          btnElement.style.backgroundColor = '';
+          btnElement.disabled = false;
+        }, 1500);
+      }).catch(err => {
+        console.error('Failed to copy via navigator.clipboard: ', err);
+        
+        // Fallback for iframe restrictions
+        const textArea = document.createElement("textarea");
+        textArea.value = text;
+        textArea.style.position = "fixed";
+        textArea.style.left = "-999999px";
+        document.body.appendChild(textArea);
+        textArea.focus();
+        textArea.select();
+        try {
+          document.execCommand('copy');
+          const origHtml = btnElement.innerHTML;
+          btnElement.innerHTML = `✓ ${label}`;
+          btnElement.style.color = '#10b981';
+          btnElement.style.borderColor = '#a7f3d0';
+          btnElement.style.backgroundColor = '#ecfdf5';
+          btnElement.disabled = true;
+          setTimeout(() => {
+            btnElement.innerHTML = origHtml;
+            btnElement.style.color = '';
+            btnElement.style.borderColor = '';
+            btnElement.style.backgroundColor = '';
+            btnElement.disabled = false;
+          }, 1500);
+        } catch (copyErr) {
+          console.error('Fallback copy failed: ', copyErr);
+        }
+        document.body.removeChild(textArea);
+      });
     }
 
     function formatPhoneNumber(phoneStr) {
