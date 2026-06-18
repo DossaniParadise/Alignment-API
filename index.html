@@ -2992,10 +2992,25 @@
           phone: formatPhoneNumber(document.getElementById("inputPhone").value),
           assignedDirectorId: document.getElementById("selectAssignedDirector").value
         };
-      } else if (type === "restaurant") {
+     } else if (type === "restaurant") {
         const existingTech = (restaurants[id] && restaurants[id].assignedRepairTechnicianId) ? restaurants[id].assignedRepairTechnicianId : "";
-        const selectedEntityIdInput = document.getElementById("selectAssignedEntity").value;
-        const selectedEntityName = selectedEntityIdInput && entities[selectedEntityIdInput] ? entities[selectedEntityIdInput].name : "";
+        
+        // 1. Safe check for the entity dropdown (in case you add it later)
+        const entityDropdown = document.getElementById("selectAssignedEntity");
+        const selectedEntityIdInput = entityDropdown ? entityDropdown.value : "";
+        
+        // 2. Safely figure out the Entity Name
+        let selectedEntityName = "";
+        if (selectedEntityIdInput && entities[selectedEntityIdInput]) {
+          // Used the dropdown
+          selectedEntityName = entities[selectedEntityIdInput].name;
+        } else {
+          // Used the manual text input
+          const entityInput = document.getElementById("inputEntity");
+          if (entityInput) {
+            selectedEntityName = entityInput.value;
+          }
+        }
         
         updates[`restaurants/${id}`] = {
           id: id,
