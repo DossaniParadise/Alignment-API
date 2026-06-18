@@ -1238,9 +1238,55 @@
         <button type="button" class="btn btn-primary" style="padding: 4px 10px; background-color: var(--primary-color);" onclick="confirmUnlockAndExecute()">Unlock and Continue</button>
       </div>
     </div>
+ <div class="modal-footer" style="border-top: none; padding-top: 0; display: flex; justify-content: flex-end; gap: 6px;">
+        <button type="button" class="btn" style="padding: 4px 10px;" onclick="closeLockConfirmModal()">Cancel</button>
+        <button type="button" class="btn btn-primary" style="padding: 4px 10px; background-color: var(--primary-color);" onclick="confirmUnlockAndExecute()">Unlock and Continue</button>
+      </div>
+    </div>
   </div>
 
- 
+  <script>
+    const API_BASE_URL = "https://alignment-api-khaki.vercel.app/api/dpm-alignment";
+
+    async function loadDashboardData() {
+      try {
+        const response = await fetch(API_BASE_URL);
+        if (!response.ok) throw new Error(`API Error: ${response.status}`);
+
+        const data = await response.json();
+
+        directors = data.directors || {};
+        areaCoaches = data.areaCoaches || {};
+        repairTechnicians = data.repairTechnicians || {};
+        entities = data.entities || {};
+        restaurants = data.restaurants || {};
+
+        loadedPaths = { directors: true, areaCoaches: true, restaurants: true, repairTechnicians: true, entities: true };
+
+        migrateEntitiesIfEmpty();
+        renderAll();
+        updateRelationshipDropdowns();
+        checkInitialLoadCaptured();
+
+        const statusBadge = document.getElementById("connectionStatus");
+        if (statusBadge) statusBadge.className = "status-badge online";
+        
+        const statusText = document.getElementById("statusText");
+        if (statusText) statusText.innerText = "API Connected";
+
+      } catch (error) {
+        console.error("Failed to load data:", error);
+        const statusBadge = document.getElementById("connectionStatus");
+        if (statusBadge) statusBadge.className = "status-badge";
+        
+        const statusText = document.getElementById("statusText");
+        if (statusText) statusText.innerText = "Connection Failed";
+      }
+    }
+
+    // Load data immediately on startup
+    loadDashboardData();
+
     // ==========================================
     // 2. STATE DATA CACHE & SELECTION MODEL
     // ==========================================
