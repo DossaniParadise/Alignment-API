@@ -1404,61 +1404,7 @@
       return changeTimestamps[id];
     }
 
-    // Monitor Firebase Connection Status
-    db.ref(".info/connected").on("value", function(snap) {
-      const statusDiv = document.getElementById("connectionStatus");
-      const statusText = document.getElementById("statusText");
-      if (snap.val() === true) {
-        statusDiv.className = "status-badge online";
-        statusText.innerText = "Syncing Realtime";
-      } else {
-        statusDiv.className = "status-badge";
-        statusText.innerText = "Offline";
-      }
-    });
 
-    // ==========================================
-    // 3. LISTEN TO FLAT FIREBASE PATHS (INSTANT UPDATES)
-    // ==========================================
-    db.ref("directors").on("value", (snapshot) => {
-      directors = snapshot.val() || {};
-      loadedPaths.directors = true;
-      renderAll();
-      updateRelationshipDropdowns();
-      checkInitialLoadCaptured();
-    });
-
-    db.ref("areaCoaches").on("value", (snapshot) => {
-      areaCoaches = snapshot.val() || {};
-      loadedPaths.areaCoaches = true;
-      renderAll();
-      updateRelationshipDropdowns();
-      checkInitialLoadCaptured();
-    });
-
-    db.ref("repairTechnicians").on("value", (snapshot) => {
-      repairTechnicians = snapshot.val() || {};
-      loadedPaths.repairTechnicians = true;
-      renderAll();
-      checkInitialLoadCaptured();
-    });
-
-    db.ref("entities").on("value", (snapshot) => {
-      entities = snapshot.val() || {};
-      loadedPaths.entities = true;
-      migrateEntitiesIfEmpty();
-      renderAll();
-      updateRelationshipDropdowns();
-      checkInitialLoadCaptured();
-    });
-
-    db.ref("restaurants").on("value", (snapshot) => {
-      restaurants = snapshot.val() || {};
-      loadedPaths.restaurants = true;
-      migrateEntitiesIfEmpty();
-      renderAll();
-      checkInitialLoadCaptured();
-    });
 
     let didMigrateEntities = false;
     function migrateEntitiesIfEmpty() {
