@@ -1667,6 +1667,23 @@
       if (!storeNumStr) return "";
       const cleaned = String(storeNumStr).trim();
       if (!cleaned || cleaned === '#') return '#';
+
+      
+      // If the part after '#' contains alphabet characters or if the whole string contains letters
+      // (excluding standard company prefixes like 'BK #' or 'QS #'), preserve it as-is
+      const afterHashMatch = cleaned.match(/#\s*(.*)/);
+      if (afterHashMatch) {
+        const afterHash = afterHashMatch[1].trim();
+        if (/[a-zA-Z]/.test(afterHash)) {
+          return cleaned;
+        }
+      } else {
+        const lowerCleaned = cleaned.toLowerCase();
+        if (/[a-zA-Z]/.test(cleaned) && !lowerCleaned.startsWith('bk') && !lowerCleaned.startsWith('qs')) {
+          return cleaned;
+        }
+      }
+
       
       const digits = cleaned.replace(/\D/g, '');
       if (!digits) return cleaned; // fallback if no digits (e.g. letters only)
@@ -1913,7 +1930,12 @@
     function renderEntities() {
       const listDiv = document.getElementById("entitiesList");
       const countSpan = document.getElementById("entityCount");
-      const keys = Object.keys(entities);
+      const keys = Object.keys(entities).sort((a, b) => {
+      const nameA = (entities[a].name || "").toLowerCase();
+      const nameB = (entities[b].name || "").toLowerCase();
+      return nameA.localeCompare(nameB);
+      });
+
       
       countSpan.innerText = keys.length;
       listDiv.innerHTML = "";
