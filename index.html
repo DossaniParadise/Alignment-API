@@ -1312,6 +1312,70 @@
     // EDITING PASSWORD: Set your desired password between the quotes below.
     const EDIT_PASSWORD = "dpm";
 
+// ==========================================
+    // VIRTUAL DATABASE ROUTER 
+    // Intercepts legacy Firebase commands and securely routes them to Vercel
+    // ==========================================
+    const db = {
+      ref: function(path = "") {
+        const cleanPath = path.startsWith('/') ? path.substring(1) : path;
+        
+        // Universal function to push data to Vercel
+        const executeVercelPost = async (updates, callback) => {
+          try {
+            const response = await fetch(API_BASE_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ password: EDIT_PASSWORD, updates: updates })
+            });
+            
+            if (!response.ok) {
+              const errData = await response.json();
+              throw new Error(errData.error || "API Write Error");
+            }
+            
+            await loadDashboardData(); // Refresh UI instantly to show the new data
+            if (callback) callback(null);
+          } catch (err) {
+            console.error(err);
+            if (callback) callback(err);
+          }
+        };
+
+        return {
+          // Generates a unique 20-character Firebase-style ID locally
+          push: function() {
+            const chars = '-0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz';
+            let autoId = '-';
+            for (let i = 0; i < 19; i++) { autoId += chars.charAt(Math.floor(Math.random() * chars.length)); }
+            return { key: autoId };
+          },
+          // Intercepts db.ref().update() calls
+          update: function(updates, callback) {
+            let mappedUpdates = {};
+            let prefix = cleanPath ? cleanPath + "/" : "";
+            for (let key in updates) {
+              let cleanKey = key.startsWith('/') ? key.substring(1) : key;
+              mappedUpdates[prefix + cleanKey] = updates[key];
+            }
+            executeVercelPost(mappedUpdates, callback);
+          },
+          // Intercepts db.ref().remove() calls
+          remove: function(callback) {
+            let mappedUpdates = {};
+            mappedUpdates[cleanPath] = null; // In Firebase, setting to null is identical to removing
+            executeVercelPost(mappedUpdates, callback);
+          },
+          // Intercepts db.ref().set() calls (used in your demo seed function)
+          set: function(value, callback) {
+            let mappedUpdates = {};
+            mappedUpdates[cleanPath || "/"] = value;
+            executeVercelPost(mappedUpdates, callback);
+          }
+        };
+      }
+    };
+    
     let isEditingLocked = true;
     let pendingLockAction = null;
 
