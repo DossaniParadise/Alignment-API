@@ -1,0 +1,8 @@
+{
+  "name": "dpm-alignment",
+  "version": "1.0.0",
+  "description": "Read-only routing API for DPM store hierarchy",
+  "dependencies": {
+    "firebase-admin": "^12.0.0"
+  }
+}
