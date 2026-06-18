@@ -2818,7 +2818,7 @@
       });
     }
 
-    function openEditModal(type, id) {
+   function openEditModal(type, id) {
       performLockedAction(() => {
         document.getElementById("crudForm").reset();
         document.getElementById("formType").value = type;
@@ -2850,7 +2850,7 @@
           document.getElementById("inputEmail").value = item.email || "";
           document.getElementById("inputPhone").value = item.phone || "";
           document.getElementById("selectAssignedDirector").value = item.assignedDirectorId || "";
-          } else if (type === "restaurant") {
+        } else if (type === "restaurant") {
           const item = restaurants[id];
           document.getElementById("inputStoreNumber").value = item.storeNumber || "";
           document.getElementById("inputStoreName").value = item.storeName || "";
@@ -2869,18 +2869,6 @@
           if (entityInput) {
             entityInput.value = item.entity || "";
           }
-          
-          document.getElementById("inputLatitude").value = item.latitude || "";
-          document.getElementById("inputLongitude").value = item.longitude || "";
-          document.getElementById("inputEmail").value = item.email || "";
-          document.getElementById("inputPhone").value = item.phone || "";
-          document.getElementById("selectAssignedCoach").value = item.assignedAreaCoachId || "";
-          document.getElementById("selectAssignedDirector").value = item.assignedDirectorId || "";
-        }
-          
-          // set default select values
-          const selectAssignedEntityVal = item.assignedEntityId || "";
-          document.getElementById("selectAssignedEntity").value = selectAssignedEntityVal;
           
           document.getElementById("inputLatitude").value = item.latitude || "";
           document.getElementById("inputLongitude").value = item.longitude || "";
