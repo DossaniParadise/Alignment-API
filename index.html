@@ -6,12 +6,6 @@
   <title>Dossani Central Store Manager</title>
   
   <!-- ==================================================================== -->
-  <!-- FIREBASE SCRIPTS (Compat v9 CDN)                                     -->
-  <!-- ==================================================================== -->
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.22.0/firebase-database-compat.js"></script>
-
-  <!-- ==================================================================== -->
   <!-- CSS STYLING (Vanilla, clean, high-contrast admin dashboard feel)     -->
   <!-- ==================================================================== -->
   <style>
@@ -1246,28 +1240,7 @@
     </div>
   </div>
 
-  <!-- ==================================================================== -->
-  <!-- JAVASCRIPT LOGIC (Firebase setup, drag/drop, list renders, CRUD)     -->
-  <!-- ==================================================================== -->
-  <script>
-    // ==========================================
-    // 1. FIREBASE CONFIGURATION
-    // Standard Config for Dossani Core database
-    // ==========================================
-    const firebaseConfig = {
-      apiKey: "AIzaSyDIGLmJ5r_fBhB5xOL8oadQ7csN3wGh2dI",
-      authDomain: "dpm-alignment.firebaseapp.com",
-      databaseURL: "https://dpm-alignment-default-rtdb.firebaseio.com",
-      projectId: "dpm-alignment",
-      storageBucket: "dpm-alignment.firebasestorage.app",
-      messagingSenderId: "298588092433",
-      appId: "1:298588092433:web:694a9412658adac039d9b0"
-    };
-
-    // Initialize Firebase
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-
+ 
     // ==========================================
     // 2. STATE DATA CACHE & SELECTION MODEL
     // ==========================================
