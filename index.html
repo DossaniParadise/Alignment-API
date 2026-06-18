@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dossani Central Store Manager</title>
+  <title>Dossani Unified Directory and Alignment</title>
+  <link rel="icon" type="image/x-icon" href="/favicon.ico">
   
   <!-- ==================================================================== -->
   <!-- CSS STYLING (Vanilla, clean, high-contrast admin dashboard feel)     -->
@@ -868,8 +869,8 @@
   <!-- ==================================================================== -->
   <header>
     <div class="header-logo">
-      <h1>Dossani Central Store Manager</h1>
-      <span>v3.0 Operations Dashboard</span>
+      <h1>Dossani Unified Directory and Alignment</h1>
+      <span>v3.2 Vercel API</span>
     </div>
     
     <div class="header-actions">
@@ -2849,12 +2850,33 @@
           document.getElementById("inputEmail").value = item.email || "";
           document.getElementById("inputPhone").value = item.phone || "";
           document.getElementById("selectAssignedDirector").value = item.assignedDirectorId || "";
-        } else if (type === "restaurant") {
+          } else if (type === "restaurant") {
           const item = restaurants[id];
           document.getElementById("inputStoreNumber").value = item.storeNumber || "";
           document.getElementById("inputStoreName").value = item.storeName || "";
           document.getElementById("inputStoreManager").value = item.storeManager || "";
           document.getElementById("inputAddress").value = item.address || "";
+          
+          // Safe check for the entity dropdown in case it doesn't exist in the HTML yet
+          const selectAssignedEntityVal = item.assignedEntityId || "";
+          const entityDropdown = document.getElementById("selectAssignedEntity");
+          if (entityDropdown) {
+            entityDropdown.value = selectAssignedEntityVal;
+          }
+
+          // Populate the manual text entity field if it exists
+          const entityInput = document.getElementById("inputEntity");
+          if (entityInput) {
+            entityInput.value = item.entity || "";
+          }
+          
+          document.getElementById("inputLatitude").value = item.latitude || "";
+          document.getElementById("inputLongitude").value = item.longitude || "";
+          document.getElementById("inputEmail").value = item.email || "";
+          document.getElementById("inputPhone").value = item.phone || "";
+          document.getElementById("selectAssignedCoach").value = item.assignedAreaCoachId || "";
+          document.getElementById("selectAssignedDirector").value = item.assignedDirectorId || "";
+        }
           
           // set default select values
           const selectAssignedEntityVal = item.assignedEntityId || "";
