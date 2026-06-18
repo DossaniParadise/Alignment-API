@@ -3,7 +3,6 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <link rel="icon" type="image/x-icon" href="favicon.ico">
   <title>Dossani Central Store Manager</title>
   
   <!-- ==================================================================== -->
@@ -378,6 +377,12 @@
     .badge-coach {
       background-color: #e0f2fe;
       color: #0369a1;
+    }
+
+    .badge-entity {
+      background-color: #f3e8ff;
+      color: #6b21a8;
+      border: 1px solid #e9d5ff;
     }
 
     .badge-unassigned {
@@ -938,35 +943,58 @@
       </div>
     </section>
 
-    <!-- MIDDLE COLUMN - AREA COACHES -->
-    <section class="column">
-      <div class="column-header">
-        <div class="column-title">
-          Area Coaches
-          <span class="column-counter" id="coachCount">0</span>
+    <!-- MIDDLE COLUMN - AREA COACHES & ENTITIES -->
+    <section class="column" style="display: flex; flex-direction: column;">
+      <!-- Area Coaches (Top Half) -->
+      <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden; border-bottom: 2px solid var(--neutral-border);">
+        <div class="column-header">
+          <div class="column-title">
+            Area Coaches
+            <span class="column-counter" id="coachCount">0</span>
+          </div>
+          <button class="btn btn-primary btn-xs" onclick="openCreateModal('coach')">+ Add</button>
         </div>
-        <button class="btn btn-primary btn-xs" onclick="openCreateModal('coach')">+ Add</button>
+
+        <!-- Area Coach sorting options -->
+        <div class="column-action-bar">
+          <span style="font-size: 0.72rem; color: #64748b; font-weight: 500;">Sort:</span>
+          <select class="control-select" id="coachSortSelect" onchange="changeCoachSort(this.value)" style="flex: 1; max-width: 140px;">
+            <option value="none">Default (As Is)</option>
+            <option value="asc">A-Z Name</option>
+            <option value="desc">Z-A Name</option>
+          </select>
+        </div>
+
+        <!-- Scoped Area Coach filter bar -->
+        <div id="coachFilterBar" class="filter-message-bar" style="display: none;">
+          <span id="coachFilterText" style="font-weight: 500;">Filtered by Director</span>
+          <button class="clear-filter-btn" onclick="clearDirectorFilter()">Show All</button>
+        </div>
+
+        <div class="cards-list" id="coachesList" style="flex: 1; overflow-y: auto;" ondragover="handleDragOverList(event)" ondragleave="handleDragLeaveList(event)" ondrop="handleDropOnCoachList(event)">
+          <!-- Area Coaches loaded dynamically by database listeners -->
+        </div>
       </div>
 
-      <!-- Area Coach sorting options -->
-      <div class="column-action-bar">
-        <span style="font-size: 0.72rem; color: #64748b; font-weight: 500;">Sort:</span>
-        <select class="control-select" id="coachSortSelect" onchange="changeCoachSort(this.value)" style="flex: 1; max-width: 140px;">
-          <option value="none">Default (As Is)</option>
-          <option value="asc">A-Z Name</option>
-          <option value="desc">Z-A Name</option>
-        </select>
-      </div>
+      <!-- Entities (Bottom Half) -->
+      <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+        <div class="column-header">
+          <div class="column-title">
+            Entities
+            <span class="column-counter" id="entityCount">0</span>
+          </div>
+          <button class="btn btn-primary btn-xs" onclick="openCreateModal('entity')">+ Add Entity</button>
+        </div>
 
-      <!-- Scoped Area Coach filter bar -->
-      <div id="coachFilterBar" class="filter-message-bar" style="display: none;">
-        <span id="coachFilterText" style="font-weight: 500;">Filtered by Director</span>
-        <button class="clear-filter-btn" onclick="clearDirectorFilter()">Show All</button>
-      </div>
+        <!-- Scoped Entity filter bar if selected -->
+        <div id="entityFilterBar" class="filter-message-bar" style="display: none;">
+          <span id="entityFilterText" style="font-weight: 500;">Filtered by Entity</span>
+          <button class="clear-filter-btn" onclick="clearEntityFilters()">Show All</button>
+        </div>
 
-      <!-- Drag indicator area dropzone -->
-      <div class="cards-list" id="coachesList" ondragover="handleDragOverList(event)" ondragleave="handleDragLeaveList(event)" ondrop="handleDropOnCoachList(event)">
-        <!-- Area Coaches loaded dynamically by database listeners -->
+        <div class="cards-list" id="entitiesList" style="flex: 1; overflow-y: auto;" ondragover="handleDragOverList(event)" ondragleave="handleDragLeaveList(event)" ondrop="handleDropOnEntityList(event)">
+          <!-- Entities loaded dynamically by database listeners -->
+        </div>
       </div>
     </section>
 
@@ -1247,16 +1275,19 @@
     let areaCoaches = {};
     let restaurants = {};
     let repairTechnicians = {};
+    let entities = {};
 
     let selectedDirectorId = null;
     let selectedCoachId = null;
     let selectedTechnicianId = null;
+    let selectedEntityId = null;
 
     // Card inline expansion state tracking (Only one expanded card per column is allowed)
     let expandedDirectorId = null;
     let expandedCoachId = null;
     let expandedRestaurantId = null;
     let expandedTechnicianId = null;
+    let expandedEntityId = null;
 
     // Safety Lock Mode State
     // EDITING PASSWORD: Set your desired password between the quotes below.
@@ -1367,18 +1398,20 @@
     let initialCoaches = {};
     let initialRestaurants = {};
     let initialTechnicians = {};
+    let initialEntities = {};
     let initialLoadCaptured = false;
-    let loadedPaths = { directors: false, areaCoaches: false, restaurants: false, repairTechnicians: false };
+    let loadedPaths = { directors: false, areaCoaches: false, restaurants: false, repairTechnicians: false, entities: false };
 
     // Realtime change event logs timestamps
     const changeTimestamps = {};
 
     function checkInitialLoadCaptured() {
-      if (!initialLoadCaptured && loadedPaths.directors && loadedPaths.areaCoaches && loadedPaths.restaurants && loadedPaths.repairTechnicians) {
+      if (!initialLoadCaptured && loadedPaths.directors && loadedPaths.areaCoaches && loadedPaths.restaurants && loadedPaths.repairTechnicians && loadedPaths.entities) {
         // Clone exact nested data snapshot of assignments on page load
         initialCoaches = JSON.parse(JSON.stringify(areaCoaches));
         initialRestaurants = JSON.parse(JSON.stringify(restaurants));
         initialTechnicians = JSON.parse(JSON.stringify(repairTechnicians));
+        initialEntities = JSON.parse(JSON.stringify(entities));
         initialLoadCaptured = true;
         console.log("Original org baseline captured for change tracking!", initialCoaches, initialRestaurants);
         renderHistory();
@@ -1437,12 +1470,66 @@
       checkInitialLoadCaptured();
     });
 
+    db.ref("entities").on("value", (snapshot) => {
+      entities = snapshot.val() || {};
+      loadedPaths.entities = true;
+      migrateEntitiesIfEmpty();
+      renderAll();
+      updateRelationshipDropdowns();
+      checkInitialLoadCaptured();
+    });
+
     db.ref("restaurants").on("value", (snapshot) => {
       restaurants = snapshot.val() || {};
       loadedPaths.restaurants = true;
+      migrateEntitiesIfEmpty();
       renderAll();
       checkInitialLoadCaptured();
     });
+
+    let didMigrateEntities = false;
+    function migrateEntitiesIfEmpty() {
+      if (didMigrateEntities || !loadedPaths.restaurants || !loadedPaths.entities) return;
+      
+      // Check if entities is truly empty and did not load any keys
+      if (Object.keys(entities).length === 0) {
+        const uniqueNames = new Set();
+        Object.keys(restaurants).forEach(id => {
+          const name = (restaurants[id].entity || "").trim();
+          if (name) {
+            uniqueNames.add(name);
+          }
+        });
+        
+        if (uniqueNames.size > 0) {
+          const updates = {};
+          uniqueNames.forEach(name => {
+            // Generate a push key
+            const newKey = db.ref("entities").push().key;
+            updates[`entities/${newKey}`] = {
+              id: newKey,
+              name: name,
+              email: "",
+              phone: ""
+            };
+            
+            // For each restaurant matching this name, assign it
+            Object.keys(restaurants).forEach(restId => {
+              if ((restaurants[restId].entity || "").trim() === name) {
+                updates[`restaurants/${restId}/assignedEntityId`] = newKey;
+              }
+            });
+          });
+          
+          db.ref().update(updates, (err) => {
+            if (!err) {
+              console.log("Successfully migrated entity text fields to structured Entity entries!");
+            }
+          });
+        }
+      }
+      didMigrateEntities = true;
+    }
 
     // ==========================================
     // 4. RENDERING ROUTINES FOR THE 3 VIEWS
@@ -1451,6 +1538,7 @@
       renderDirectors();
       renderTechnicians();
       renderCoaches();
+      renderEntities();
       renderRestaurants();
       renderHistory();
       updateFilterBars();
@@ -1502,11 +1590,13 @@
         selectedTechnicianId = null;
       } else {
         selectedTechnicianId = id;
-        // Exclusive filtering: clear operations/coaches filters when technician is selected
+        // Exclusive filtering: clear operations/coaches/entities filters when technician is selected
         selectedDirectorId = null;
         selectedCoachId = null;
+        selectedEntityId = null;
         expandedDirectorId = null;
         expandedCoachId = null;
+        expandedEntityId = null;
       }
       renderAll();
     }
@@ -1514,6 +1604,38 @@
     function clearTechnicianFilters() {
       selectedTechnicianId = null;
       expandedTechnicianId = null;
+      renderAll();
+    }
+
+    function toggleEntityExpand(entId) {
+      if (window.getSelection().toString()) return; // Stop toggle if user is selecting text to copy
+      if (expandedEntityId === entId) {
+        expandedEntityId = null;
+      } else {
+        expandedEntityId = entId;
+      }
+      selectEntity(entId);
+    }
+
+    function selectEntity(id) {
+      if (selectedEntityId === id) {
+        selectedEntityId = null;
+      } else {
+        selectedEntityId = id;
+        // Exclusive filtering: clear operations/coaches/technicians filters when entity is selected
+        selectedDirectorId = null;
+        selectedCoachId = null;
+        selectedTechnicianId = null;
+        expandedDirectorId = null;
+        expandedCoachId = null;
+        expandedTechnicianId = null;
+      }
+      renderAll();
+    }
+
+    function clearEntityFilters() {
+      selectedEntityId = null;
+      expandedEntityId = null;
       renderAll();
     }
 
@@ -1764,6 +1886,68 @@
       });
     }
 
+    // Render entities column (bottom half of Column 2)
+    function renderEntities() {
+      const listDiv = document.getElementById("entitiesList");
+      const countSpan = document.getElementById("entityCount");
+      const keys = Object.keys(entities);
+      
+      countSpan.innerText = keys.length;
+      listDiv.innerHTML = "";
+
+      if (keys.length === 0) {
+        listDiv.innerHTML = `<div class="card" style="text-align: center; color: var(--text-muted); pointer-events: none;">No Legal Entities. Click + Add Entity</div>`;
+        return;
+      }
+
+      keys.forEach((entId) => {
+        const ent = entities[entId];
+        const isSelected = selectedEntityId === entId;
+        const isExpanded = expandedEntityId === entId;
+        
+        const card = document.createElement("div");
+        card.className = `card ${isSelected ? 'selected' : ''}`;
+        card.setAttribute("data-id", entId);
+        card.setAttribute("data-type", "entity");
+        
+        // Click toggles inline expansion and active filtering
+        card.addEventListener("click", () => toggleEntityExpand(entId));
+        card.addEventListener("dragover", handleDragOverCard);
+        card.addEventListener("dragleave", handleDragLeaveCard);
+        card.addEventListener("drop", handleDropOnEntityCard);
+
+        if (isExpanded) {
+          card.innerHTML = `
+            <div class="card-header-row">
+              <div class="card-title">${escapeHtml(ent.name)} <span style="font-weight: normal; color: #a855f7; font-size: 0.72rem; margin-left: 4px;">(Active)</span></div>
+              <div class="card-actions">
+                <button class="btn btn-icon btn-icon-edit" onclick="event.stopPropagation(); openEditModal('entity', '${entId}')">✎</button>
+                <button class="btn btn-icon btn-icon-delete" onclick="event.stopPropagation(); deleteEntry('entity', '${entId}')">✕</button>
+              </div>
+            </div>
+            <div class="card-details-block" onmousedown="event.stopPropagation();" onclick="event.stopPropagation();" style="pointer-events: auto !important; margin-top: 6px;">
+              <div class="card-detail" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <span>✉ ${escapeHtml(ent.email || 'No email')}</span>
+                ${ent.email ? `<button class="copy-btn-mini" onclick="copyTextToClipboard(this.getAttribute('data-text'), this)" data-text="${escapeHtml(ent.email)}">📋 Copy</button>` : ''}
+              </div>
+              <div class="card-detail" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <span>☎ ${escapeHtml(formatPhoneNumber(ent.phone) || 'No phone')}</span>
+                ${ent.phone ? `<button class="copy-btn-mini" onclick="copyTextToClipboard(this.getAttribute('data-text'), this)" data-text="${escapeHtml(formatPhoneNumber(ent.phone))}">📋 Copy</button>` : ''}
+              </div>
+            </div>
+          `;
+        } else {
+          card.innerHTML = `
+            <div class="card-header-row" style="margin-bottom: 0; align-items: center;">
+              <div class="card-title">${escapeHtml(ent.name)}</div>
+              <span style="font-size: 0.65rem; color: #a1a1aa; font-weight: 500;">Click to reveal</span>
+            </div>
+          `;
+        }
+        listDiv.appendChild(card);
+      });
+    }
+
     // Render area coaches column
     function renderCoaches() {
       const listDiv = document.getElementById("coachesList");
@@ -1903,6 +2087,16 @@
       if (selectedCoachId) {
         // Filter by specific coach
         keys = keys.filter(id => restaurants[id].assignedAreaCoachId === selectedCoachId);
+        keys = filterAndSortRestaurantKeys(keys);
+        countSpan.innerText = keys.length;
+        listDiv.innerHTML = "";
+        renderRestaurantListPlain(keys, listDiv);
+      } else if (selectedEntityId) {
+        // Filter by specific Entity
+        keys = keys.filter(id => {
+          const r = restaurants[id];
+          return r && (r.assignedEntityId === selectedEntityId || (!r.assignedEntityId && r.entity && entities[selectedEntityId] && r.entity === entities[selectedEntityId].name));
+        });
         keys = filterAndSortRestaurantKeys(keys);
         countSpan.innerText = keys.length;
         listDiv.innerHTML = "";
@@ -2143,6 +2337,10 @@
               <div class="assignment-tags" style="margin-top: 4px;">
                 ${dirName ? `<span class="relation-badge badge-director">Dir: ${escapeHtml(dirName)}</span>` : ''}
                 ${coachName ? `<span class="relation-badge badge-coach">Coach: ${escapeHtml(coachName)}</span>` : '<span class="relation-badge badge-unassigned">Direct Report</span>'}
+                ${rest.assignedEntityId && entities[rest.assignedEntityId] 
+                  ? `<span class="relation-badge badge-entity">Ent: ${escapeHtml(entities[rest.assignedEntityId].name)}</span>` 
+                  : (rest.entity ? `<span class="relation-badge badge-entity">Ent: ${escapeHtml(rest.entity)}</span>` : '')
+                }
                 ${rest.assignedRepairTechnicianId && repairTechnicians[rest.assignedRepairTechnicianId] 
                   ? `<span class="relation-badge" style="background-color: #f59e0b; color: #ffffff; border: 1px solid #d97706;">🛠 Tech: ${escapeHtml(repairTechnicians[rest.assignedRepairTechnicianId].name)}</span>` 
                   : ''
@@ -2201,8 +2399,8 @@
       if (draggedElementData.type === 'coach' && targetType === 'director') {
         e.currentTarget.classList.add("drag-hover-target");
       }
-      // 2. Restaurant can drop on Director, Coach, or Technician
-      if (draggedElementData.type === 'restaurant' && (targetType === 'director' || targetType === 'coach' || targetType === 'technician')) {
+      // 2. Restaurant can drop on Director, Coach, Technician, or Entity
+      if (draggedElementData.type === 'restaurant' && (targetType === 'director' || targetType === 'coach' || targetType === 'technician' || targetType === 'entity')) {
         e.currentTarget.classList.add("drag-hover-target");
       }
     }
@@ -2297,6 +2495,29 @@
       }
     }
 
+    // DROP: Restaurant dropped on an Entity card
+    function handleDropOnEntityCard(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      e.currentTarget.classList.remove("drag-hover-target");
+
+      if (!draggedElementData) return;
+      const targetEntityId = e.currentTarget.getAttribute("data-id");
+      const ent = entities[targetEntityId];
+      const elemId = draggedElementData.id;
+      const elemType = draggedElementData.type;
+
+      if (elemType === "restaurant" && ent) {
+        performLockedAction(() => {
+          trackChangeTimestamp(elemId);
+          db.ref(`restaurants/${elemId}`).update({
+            assignedEntityId: targetEntityId,
+            entity: ent.name
+          });
+        });
+      }
+    }
+
     // DROP: dropping Coach onto empty layout space to clear their assigned Director
     function handleDropOnCoachList(e) {
       e.preventDefault();
@@ -2346,6 +2567,23 @@
       }
     }
 
+    // DROP: dropping Restaurant onto empty entities list to clear assigned Legal Entity
+    function handleDropOnEntityList(e) {
+      e.preventDefault();
+      e.currentTarget.classList.remove("drag-hover");
+
+      if (draggedElementData && draggedElementData.type === "restaurant") {
+        const elemId = draggedElementData.id;
+        performLockedAction(() => {
+          trackChangeTimestamp(elemId);
+          db.ref(`restaurants/${elemId}`).update({
+            assignedEntityId: "",
+            entity: "" // compat string
+          });
+        });
+      }
+    }
+
     // ==========================================
     // 6. SELECTION FILTERS ACTIONS
     // ==========================================
@@ -2358,6 +2596,8 @@
         selectedDirectorId = id;
         selectedCoachId = null; // reset sub coach
         selectedTechnicianId = null; // reset technician
+        selectedEntityId = null; // reset entity
+        expandedEntityId = null;
       }
       renderAll();
     }
@@ -2370,6 +2610,8 @@
       } else {
         selectedCoachId = id;
         selectedTechnicianId = null; // reset technician
+        selectedEntityId = null; // reset entity
+        expandedEntityId = null;
       }
       renderAll();
     }
@@ -2381,6 +2623,8 @@
       const restaurantFilterText = document.getElementById("restaurantFilterText");
       const technicianFilterBar = document.getElementById("technicianFilterBar");
       const technicianFilterText = document.getElementById("technicianFilterText");
+      const entityFilterBar = document.getElementById("entityFilterBar");
+      const entityFilterText = document.getElementById("entityFilterText");
 
       if (selectedDirectorId) {
         const dir = directors[selectedDirectorId];
@@ -2404,6 +2648,13 @@
           restaurantFilterBar.style.display = "flex";
           restaurantFilterText.innerHTML = `Showing stores of Coach <strong>${escapeHtml(coachName)}</strong>`;
         }
+      } else if (selectedEntityId) {
+        const ent = entities[selectedEntityId];
+        const entName = ent ? ent.name : "Selected Entity";
+        if (restaurantFilterBar) {
+          restaurantFilterBar.style.display = "flex";
+          restaurantFilterText.innerHTML = `Showing stores of Entity <strong>${escapeHtml(entName)}</strong>`;
+        }
       } else if (selectedTechnicianId) {
         const tech = repairTechnicians[selectedTechnicianId];
         const techName = tech ? tech.name : "Selected Technician";
@@ -2425,6 +2676,17 @@
       } else {
         if (technicianFilterBar) technicianFilterBar.style.display = "none";
       }
+
+      if (selectedEntityId) {
+        const ent = entities[selectedEntityId];
+        const entName = ent ? ent.name : "Selected Entity";
+        if (entityFilterBar) {
+          entityFilterBar.style.display = "flex";
+          entityFilterText.innerHTML = `Filtered by Entity: <strong>${escapeHtml(entName)}</strong>`;
+        }
+      } else {
+        if (entityFilterBar) entityFilterBar.style.display = "none";
+      }
     }
 
     function clearDirectorFilter() {
@@ -2439,9 +2701,11 @@
       selectedDirectorId = null;
       selectedCoachId = null;
       selectedTechnicianId = null;
+      selectedEntityId = null;
       expandedDirectorId = null;
       expandedCoachId = null;
       expandedTechnicianId = null;
+      expandedEntityId = null;
       
       // Also reset searching
       const searchInput = document.getElementById("restaurantSearchInput");
@@ -2500,7 +2764,7 @@
         document.getElementById("crudForm").reset();
         document.getElementById("formType").value = type;
         document.getElementById("formId").value = "";
-        const titleText = type === "restaurant" ? "Add New Store" : type === "technician" ? "Add Repair Technician" : `Add New ${capitalize(type)}`;
+        const titleText = type === "restaurant" ? "Add New Store" : type === "technician" ? "Add Repair Technician" : type === "entity" ? "Add Legal Entity" : `Add New ${capitalize(type)}`;
         document.getElementById("modalTitle").innerText = titleText;
         
         setupFormFields(type);
@@ -2513,7 +2777,7 @@
         document.getElementById("crudForm").reset();
         document.getElementById("formType").value = type;
         document.getElementById("formId").value = id;
-        const titleText = type === "restaurant" ? "Edit Store" : type === "technician" ? "Edit Repair Technician" : `Edit ${capitalize(type)}`;
+        const titleText = type === "restaurant" ? "Edit Store" : type === "technician" ? "Edit Repair Technician" : type === "entity" ? "Edit Legal Entity" : `Edit ${capitalize(type)}`;
         document.getElementById("modalTitle").innerText = titleText;
         
         setupFormFields(type);
@@ -2529,6 +2793,11 @@
           document.getElementById("inputName").value = item.name || "";
           document.getElementById("inputEmail").value = item.email || "";
           document.getElementById("inputPhone").value = item.phone || "";
+        } else if (type === "entity") {
+          const item = entities[id];
+          document.getElementById("inputName").value = item ? item.name || "" : "";
+          document.getElementById("inputEmail").value = item ? item.email || "" : "";
+          document.getElementById("inputPhone").value = item ? item.phone || "" : "";
         } else if (type === "coach") {
           const item = areaCoaches[id];
           document.getElementById("inputName").value = item.name || "";
@@ -2541,7 +2810,11 @@
           document.getElementById("inputStoreName").value = item.storeName || "";
           document.getElementById("inputStoreManager").value = item.storeManager || "";
           document.getElementById("inputAddress").value = item.address || "";
-          document.getElementById("inputEntity").value = item.entity || "";
+          
+          // set default select values
+          const selectAssignedEntityVal = item.assignedEntityId || "";
+          document.getElementById("selectAssignedEntity").value = selectAssignedEntityVal;
+          
           document.getElementById("inputLatitude").value = item.latitude || "";
           document.getElementById("inputLongitude").value = item.longitude || "";
           document.getElementById("inputEmail").value = item.email || "";
@@ -2577,25 +2850,39 @@
     function updateRelationshipDropdowns() {
       const selectDir = document.getElementById("selectAssignedDirector");
       const selectCoach = document.getElementById("selectAssignedCoach");
+      const selectEntity = document.getElementById("selectAssignedEntity");
 
       // Save user selected values temporarily
-      const prevDir = selectDir.value;
-      const prevCoach = selectCoach.value;
+      const prevDir = selectDir ? selectDir.value : "";
+      const prevCoach = selectCoach ? selectCoach.value : "";
+      const prevEntity = selectEntity ? selectEntity.value : "";
 
-      selectDir.innerHTML = `<option value="">-- No Director Assigned --</option>`;
-      Object.keys(directors).forEach(id => {
-        selectDir.innerHTML += `<option value="${id}">${escapeHtml(directors[id].name)}</option>`;
-      });
+      if (selectDir) {
+        selectDir.innerHTML = `<option value="">-- No Director Assigned --</option>`;
+        Object.keys(directors).forEach(id => {
+          selectDir.innerHTML += `<option value="${id}">${escapeHtml(directors[id].name)}</option>`;
+        });
+      }
 
-      selectCoach.innerHTML = `<option value="">-- Direct Report to Director --</option>`;
-      Object.keys(areaCoaches).forEach(id => {
-        const dirText = areaCoaches[id].assignedDirectorId && directors[areaCoaches[id].assignedDirectorId] ? ` (${directors[areaCoaches[id].assignedDirectorId].name})` : '';
-        selectCoach.innerHTML += `<option value="${id}">${escapeHtml(areaCoaches[id].name)}${escapeHtml(dirText)}</option>`;
-      });
+      if (selectCoach) {
+        selectCoach.innerHTML = `<option value="">-- Direct Report to Director --</option>`;
+        Object.keys(areaCoaches).forEach(id => {
+          const dirText = areaCoaches[id].assignedDirectorId && directors[areaCoaches[id].assignedDirectorId] ? ` (${directors[areaCoaches[id].assignedDirectorId].name})` : '';
+          selectCoach.innerHTML += `<option value="${id}">${escapeHtml(areaCoaches[id].name)}${escapeHtml(dirText)}</option>`;
+        });
+      }
+
+      if (selectEntity) {
+        selectEntity.innerHTML = `<option value="">-- No Entity Assigned --</option>`;
+        Object.keys(entities).forEach(id => {
+          selectEntity.innerHTML += `<option value="${id}">${escapeHtml(entities[id].name)}</option>`;
+        });
+      }
 
       // Restore selections
-      selectDir.value = prevDir;
-      selectCoach.value = prevCoach;
+      if (selectDir) selectDir.value = prevDir;
+      if (selectCoach) selectCoach.value = prevCoach;
+      if (selectEntity) selectEntity.value = prevEntity;
     }
 
     // Cascade director assignment if coach changes in manual edit dialog
@@ -2611,7 +2898,13 @@
       e.preventDefault();
       
       const type = document.getElementById("formType").value;
-      const id = document.getElementById("formId").value || db.ref(type === "director" ? "directors" : type === "coach" ? "areaCoaches" : type === "technician" ? "repairTechnicians" : "restaurants").push().key;
+      let targetRef = "restaurants";
+      if (type === "director") targetRef = "directors";
+      else if (type === "coach") targetRef = "areaCoaches";
+      else if (type === "technician") targetRef = "repairTechnicians";
+      else if (type === "entity") targetRef = "entities";
+      
+      const id = document.getElementById("formId").value || db.ref(targetRef).push().key;
 
       const updates = {};
       
@@ -2629,6 +2922,13 @@
           email: document.getElementById("inputEmail").value,
           phone: formatPhoneNumber(document.getElementById("inputPhone").value)
         };
+      } else if (type === "entity") {
+        updates[`entities/${id}`] = {
+          id: id,
+          name: document.getElementById("inputName").value,
+          email: document.getElementById("inputEmail").value,
+          phone: formatPhoneNumber(document.getElementById("inputPhone").value)
+        };
       } else if (type === "coach") {
         updates[`areaCoaches/${id}`] = {
           id: id,
@@ -2639,13 +2939,17 @@
         };
       } else if (type === "restaurant") {
         const existingTech = (restaurants[id] && restaurants[id].assignedRepairTechnicianId) ? restaurants[id].assignedRepairTechnicianId : "";
+        const selectedEntityIdInput = document.getElementById("selectAssignedEntity").value;
+        const selectedEntityName = selectedEntityIdInput && entities[selectedEntityIdInput] ? entities[selectedEntityIdInput].name : "";
+        
         updates[`restaurants/${id}`] = {
           id: id,
           storeNumber: formatStoreNumberDigits(document.getElementById("inputStoreNumber").value) || '#',
           storeName: document.getElementById("inputStoreName").value,
           storeManager: document.getElementById("inputStoreManager").value,
           address: document.getElementById("inputAddress").value,
-          entity: document.getElementById("inputEntity").value || "",
+          entity: selectedEntityName,
+          assignedEntityId: selectedEntityIdInput,
           latitude: document.getElementById("inputLatitude").value || "",
           longitude: document.getElementById("inputLongitude").value || "",
           email: document.getElementById("inputEmail").value,
@@ -2673,7 +2977,8 @@
           'director': 'directors',
           'coach': 'areaCoaches',
           'restaurant': 'restaurants',
-          'technician': 'repairTechnicians'
+          'technician': 'repairTechnicians',
+          'entity': 'entities'
         };
 
         if (confirm(`Are you absolutely sure you want to remove this ${type}? It will sever current branch dependencies.`)) {
@@ -2682,12 +2987,20 @@
             if (type === 'director' && selectedDirectorId === id) selectedDirectorId = null;
             if (type === 'coach' && selectedCoachId === id) selectedCoachId = null;
             if (type === 'technician' && selectedTechnicianId === id) selectedTechnicianId = null;
+            if (type === 'entity' && selectedEntityId === id) selectedEntityId = null;
 
             // Cleanup references in restaurants
             if (type === 'technician') {
               Object.keys(restaurants).forEach(restId => {
                 if (restaurants[restId].assignedRepairTechnicianId === id) {
                   db.ref(`restaurants/${restId}/assignedRepairTechnicianId`).remove();
+                }
+              });
+            } else if (type === 'entity') {
+              Object.keys(restaurants).forEach(restId => {
+                if (restaurants[restId].assignedEntityId === id) {
+                  db.ref(`restaurants/${restId}/assignedEntityId`).remove();
+                  db.ref(`restaurants/${restId}/entity`).remove();
                 }
               });
             }
