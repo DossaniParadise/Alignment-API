@@ -8,7 +8,7 @@ if (!admin.apps.length) {
       clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
       privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
     }),
-    databaseURL: "https://dpm-alignment-default-rtdb.firebaseio.com" 
+    databaseURL: "https://dpm-alignment-default-rtdb.firebaseio.com"
   });
 }
 
@@ -17,7 +17,7 @@ const db = admin.database();
 export default async function handler(req, res) {
   // CORS Headers - Allow frontend apps to communicate with this API
   res.setHeader('Access-Control-Allow-Credentials', true);
-  res.setHeader('Access-Control-Allow-Origin', '*'); 
+  res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,POST');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
@@ -41,7 +41,7 @@ export default async function handler(req, res) {
 
   // =======================================================================
   // 2. WRITE ROUTE (POST) - Strict Role-Based Access Control (RBAC)
-  // Intercepts write requests, verifies the role password, and checks 
+  // Intercepts write requests, verifies the role password, and checks
   // if the requested path is allowed for that specific role.
   // =======================================================================
   if (req.method === 'POST') {
@@ -53,33 +53,37 @@ export default async function handler(req, res) {
       }
 
       /* ------------------------------------------------------------------
-         FUTURE AI CONTEXT: 
-         This API acts as a universal router for a multi-app ecosystem 
-         using a single flat Firebase Realtime Database. 
+         FUTURE AI CONTEXT:
+         This API acts as a universal router for a multi-app ecosystem
+         using a single flat Firebase Realtime Database.
          To add a new write-capable app:
          1. Add a new key-value pair to the ROLES object below.
          2. Create a specific path-validation check for that role.
       ------------------------------------------------------------------ */
 
       const ROLES = {
-        ADMIN: "dpm",         // Central Manager: Blanket access to all core routing data
-        FILTER: "filter123"   // Preventative Maintenance App: Restricted access
+        ADMIN: "dpm",              // Central Manager: Blanket access to all core routing data
+        FILTER: "filter123",       // Preventative Maintenance App: Restricted access
+        MAINTENANCE: "maint-76051" // Repair & Maintenance App: Restricted access (CHANGE THIS SECRET)
       };
 
       const isMasterAdmin = (password === ROLES.ADMIN);
-      const isFilterApp = (password === ROLES.FILTER);
+      const isFilterApp   = (password === ROLES.FILTER);
+      const isMaintApp    = (password === ROLES.MAINTENANCE);
 
       // If the password matches nothing, reject immediately
-      if (!isMasterAdmin && !isFilterApp) {
+      if (!isMasterAdmin && !isFilterApp && !isMaintApp) {
         return res.status(401).json({ error: "Unauthorized: Incorrect Password or Invalid Role" });
       }
 
       // GATEKEEPER: Enforce Path Restrictions for specific apps
+
+      // --- Filter App: only its two nodes ---
       if (isFilterApp) {
         for (let path in updates) {
           // The Filter App is ONLY allowed to write to these two specific nodes
           const isAllowedPath = path.startsWith('filterChanges/') || path.startsWith('gasCoverChanges/');
-          
+
           if (!isAllowedPath) {
             console.warn(`Blocked unauthorized Filter App write attempt to: ${path}`);
             return res.status(403).json({ error: "Access Denied: The Filter App cannot edit core store alignment data." });
@@ -87,9 +91,25 @@ export default async function handler(req, res) {
         }
       }
 
+      // --- Repair & Maintenance App: only its two nodes ---
+      // This app stores its tickets and its approved-vendor list as nodes in
+      // the master DB. It must never be able to touch store alignment, the
+      // people nodes, or any other app's data — so we whitelist exactly the
+      // two prefixes it owns and reject everything else.
+      if (isMaintApp) {
+        for (let path in updates) {
+          const isAllowedPath = path.startsWith('maintenanceTickets/') || path.startsWith('maintenanceVendors/');
+
+          if (!isAllowedPath) {
+            console.warn(`Blocked unauthorized Maintenance App write attempt to: ${path}`);
+            return res.status(403).json({ error: "Access Denied: The Maintenance App can only edit its own ticket and vendor nodes." });
+          }
+        }
+      }
+
       // If all security checks pass, execute the batch update using the Master Admin key
       await db.ref('/').update(updates);
-      
+
       return res.status(200).json({ success: true });
 
     } catch (error) {
