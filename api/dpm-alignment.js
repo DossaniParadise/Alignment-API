@@ -64,7 +64,7 @@ export default async function handler(req, res) {
       const ROLES = {
         ADMIN: "dpm",              // Central Manager: Blanket access to all core routing data
         FILTER: "filter123",       // Preventative Maintenance App: Restricted access
-        MAINTENANCE: "maint-76051" // Repair & Maintenance App: Restricted access (CHANGE THIS SECRET)
+        MAINTENANCE: "rm123" // Repair & Maintenance App: Restricted access
       };
 
       const isMasterAdmin = (password === ROLES.ADMIN);
