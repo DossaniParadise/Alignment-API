@@ -2373,6 +2373,10 @@
                 <span>☎ Phone: ${escapeHtml(formatPhoneNumber(rest.phone) || 'No phone')}</span>
                 ${rest.phone ? `<button class="copy-btn-mini" onclick="copyTextToClipboard(this.getAttribute('data-text'), this)" data-text="${escapeHtml(formatPhoneNumber(rest.phone))}">📋 Copy</button>` : ''}
               </div>
+              <div class="card-detail" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <span style="overflow: hidden; text-overflow: ellipsis;">✉ Email: ${escapeHtml(rest.email || 'No email')}</span>
+                ${rest.email ? `<button class="copy-btn-mini" onclick="copyTextToClipboard(this.getAttribute('data-text'), this)" data-text="${escapeHtml(rest.email)}">📋 Copy</button>` : ''}
+              </div>
               ${(rest.latitude || rest.longitude) ? `
                 <div class="card-detail" style="color: #0369a1; font-weight: 550; display: flex; align-items: center; justify-content: space-between; margin-top: 2px; width: 100%;">
                   <span style="overflow: hidden; text-overflow: ellipsis;">🌐 GPS: ${escapeHtml(rest.latitude || 'N/A')}, ${escapeHtml(rest.longitude || 'N/A')}</span>
