@@ -64,7 +64,7 @@ export default async function handler(req, res) {
       const ROLES = {
         ADMIN: "dpm",              // Central Manager: Blanket access to all core routing data
         FILTER: "filter123",       // Preventative Maintenance App: Restricted access
-        MAINTENANCE: "rm123" // Repair & Maintenance App: Restricted access
+        MAINTENANCE: "rm123" // Repair & Maintenance App: Restricted access (CHANGE THIS SECRET)
       };
 
       const isMasterAdmin = (password === ROLES.ADMIN);
@@ -98,7 +98,9 @@ export default async function handler(req, res) {
       // two prefixes it owns and reject everything else.
       if (isMaintApp) {
         for (let path in updates) {
-          const isAllowedPath = path.startsWith('maintenanceTickets/') || path.startsWith('maintenanceVendors/');
+          const isAllowedPath = path.startsWith('maintenanceTickets/') ||
+            path.startsWith('maintenanceVendors/') ||
+            path.startsWith('admins/');
 
           if (!isAllowedPath) {
             console.warn(`Blocked unauthorized Maintenance App write attempt to: ${path}`);
