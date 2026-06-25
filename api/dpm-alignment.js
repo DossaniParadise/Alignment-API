@@ -64,15 +64,17 @@ export default async function handler(req, res) {
       const ROLES = {
         ADMIN: "dpm",              // Central Manager: Blanket access to all core routing data
         FILTER: "filter123",       // Preventative Maintenance App: Restricted access
-        MAINTENANCE: "rm123" // Repair & Maintenance App: Restricted access (CHANGE THIS SECRET)
+        MAINTENANCE: "rm123", // Repair & Maintenance App: Restricted access (CHANGE THIS SECRET)
+        AWT: "awt123"              // AWT Job Tracker App: Restricted access (CHANGE THIS SECRET)
       };
 
       const isMasterAdmin = (password === ROLES.ADMIN);
       const isFilterApp   = (password === ROLES.FILTER);
       const isMaintApp    = (password === ROLES.MAINTENANCE);
+      const isAwtApp      = (password === ROLES.AWT);
 
       // If the password matches nothing, reject immediately
-      if (!isMasterAdmin && !isFilterApp && !isMaintApp) {
+      if (!isMasterAdmin && !isFilterApp && !isMaintApp && !isAwtApp) {
         return res.status(401).json({ error: "Unauthorized: Incorrect Password or Invalid Role" });
       }
 
@@ -105,6 +107,25 @@ export default async function handler(req, res) {
           if (!isAllowedPath) {
             console.warn(`Blocked unauthorized Maintenance App write attempt to: ${path}`);
             return res.status(403).json({ error: "Access Denied: The Maintenance App can only edit its own ticket and vendor nodes." });
+          }
+        }
+      }
+
+      // --- AWT Job Tracker App: only its own ticket node ---
+      // This app stores all of its job tickets (per-location, per-ticket) under
+      // a single top-level node. It must never touch store alignment, filter,
+      // pump, people, or any other app's data — so we whitelist exactly the one
+      // prefix it owns and reject everything else. The app legitimately writes
+      // whole ticket objects (awtTickets/{loc}/tickets/{id}) as well as
+      // sub-fields of a ticket (.../s, .../notes) and deletes (value = null);
+      // all of those share the awtTickets/ prefix, so one rule covers them.
+      if (isAwtApp) {
+        for (let path in updates) {
+          const isAllowedPath = path.startsWith('awtTickets/');
+
+          if (!isAllowedPath) {
+            console.warn(`Blocked unauthorized AWT App write attempt to: ${path}`);
+            return res.status(403).json({ error: "Access Denied: The AWT Job Tracker can only edit its own ticket nodes." });
           }
         }
       }
