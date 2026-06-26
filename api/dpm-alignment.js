@@ -43,19 +43,36 @@ export default async function handler(req, res) {
       // shipping the whole master DB to third-party dashboards.
       // The full open GET (no ?vendor) is unchanged for internal apps.
       // ───────────────────────────────────────────────────────────────
-      const vendorId = req.query && req.query.vendor;
-      if (vendorId) {
+      // The ?vendor param may be either a vendor NAME (preferred — stable across
+      // re-adds) or a raw vendor key. We resolve it to the real key by checking
+      // names case-insensitively first, then falling back to a direct key match.
+      const vendorParam = req.query && req.query.vendor;
+      if (vendorParam) {
         const snapshot = await db.ref('/').once('value');
         const master = snapshot.val() || {};
         const allTickets = master.maintenanceTickets || {};
         const allStores  = master.restaurants || {};
+        const allVendors = master.maintenanceVendors || {};
+
+        // Resolve the param to an actual vendor key.
+        const wanted = String(vendorParam).trim().toLowerCase();
+        let vendorKey = null, vendorRec = null;
+        for (const [key, v] of Object.entries(allVendors)) {
+          if (v && String(v.name || "").trim().toLowerCase() === wanted) { vendorKey = key; vendorRec = v; break; }
+        }
+        if (!vendorKey && allVendors[vendorParam]) {   // fallback: param was a key
+          vendorKey = vendorParam; vendorRec = allVendors[vendorParam];
+        }
 
         const tickets = {};
         const storeIds = new Set();
-        for (const [id, t] of Object.entries(allTickets)) {
-          if (t && t.assignedVendorId === vendorId) {
-            tickets[id] = t;
-            if (t.storeId) storeIds.add(t.storeId);
+        // If we couldn't resolve the vendor, return an empty (but valid) payload.
+        if (vendorKey) {
+          for (const [id, t] of Object.entries(allTickets)) {
+            if (t && t.assignedVendorId === vendorKey) {
+              tickets[id] = t;
+              if (t.storeId) storeIds.add(t.storeId);
+            }
           }
         }
         // Trim restaurants to only referenced stores and only display fields.
@@ -71,8 +88,8 @@ export default async function handler(req, res) {
             longitude: s.longitude || ""
           };
         }
-        const vendor = (master.maintenanceVendors || {})[vendorId] || null;
-        return res.status(200).json({ maintenanceTickets: tickets, restaurants, vendor });
+        // Return the resolved key so the board writes back with the correct id.
+        return res.status(200).json({ maintenanceTickets: tickets, restaurants, vendor: vendorRec, vendorKey });
       }
 
       const snapshot = await db.ref('/').once('value');
