@@ -32,6 +32,49 @@ export default async function handler(req, res) {
   // =======================================================================
   if (req.method === 'GET') {
     try {
+      // ───────────────────────────────────────────────────────────────
+      // SCOPED VENDOR READ:  GET ...?vendor=<vendorId>
+      // Returns ONLY the data an external vendor board needs:
+      //   • tickets in `maintenanceTickets` whose assignedVendorId === vendorId
+      //   • a trimmed `restaurants` map (only stores those tickets reference,
+      //     and only the display fields a board uses)
+      //   • that vendor's own record from `maintenanceVendors`
+      // This keeps per-load payloads small as stores/tickets grow, and avoids
+      // shipping the whole master DB to third-party dashboards.
+      // The full open GET (no ?vendor) is unchanged for internal apps.
+      // ───────────────────────────────────────────────────────────────
+      const vendorId = req.query && req.query.vendor;
+      if (vendorId) {
+        const snapshot = await db.ref('/').once('value');
+        const master = snapshot.val() || {};
+        const allTickets = master.maintenanceTickets || {};
+        const allStores  = master.restaurants || {};
+
+        const tickets = {};
+        const storeIds = new Set();
+        for (const [id, t] of Object.entries(allTickets)) {
+          if (t && t.assignedVendorId === vendorId) {
+            tickets[id] = t;
+            if (t.storeId) storeIds.add(t.storeId);
+          }
+        }
+        // Trim restaurants to only referenced stores and only display fields.
+        const restaurants = {};
+        for (const sid of storeIds) {
+          const s = allStores[sid];
+          if (!s) continue;
+          restaurants[sid] = {
+            storeName: s.storeName || "",
+            storeNumber: s.storeNumber || "",
+            address: s.address || "",
+            latitude: s.latitude || "",
+            longitude: s.longitude || ""
+          };
+        }
+        const vendor = (master.maintenanceVendors || {})[vendorId] || null;
+        return res.status(200).json({ maintenanceTickets: tickets, restaurants, vendor });
+      }
+
       const snapshot = await db.ref('/').once('value');
       return res.status(200).json(snapshot.val());
     } catch (error) {
@@ -64,17 +107,17 @@ export default async function handler(req, res) {
       const ROLES = {
         ADMIN: "dpm",              // Central Manager: Blanket access to all core routing data
         FILTER: "filter123",       // Preventative Maintenance App: Restricted access
-        MAINTENANCE: "rm123", // Repair & Maintenance App: Restricted access (CHANGE THIS SECRET)
-        AWT: "awt123"              // AWT Job Tracker App: Restricted access (CHANGE THIS SECRET)
+        MAINTENANCE: "rm123",      // Repair & Maintenance App (internal source of truth)
+        VENDOR: "vendor123"        // Generic external vendor boards (CHANGE THIS SECRET)
       };
 
       const isMasterAdmin = (password === ROLES.ADMIN);
       const isFilterApp   = (password === ROLES.FILTER);
       const isMaintApp    = (password === ROLES.MAINTENANCE);
-      const isAwtApp      = (password === ROLES.AWT);
+      const isVendorApp   = (password === ROLES.VENDOR);
 
       // If the password matches nothing, reject immediately
-      if (!isMasterAdmin && !isFilterApp && !isMaintApp && !isAwtApp) {
+      if (!isMasterAdmin && !isFilterApp && !isMaintApp && !isVendorApp) {
         return res.status(401).json({ error: "Unauthorized: Incorrect Password or Invalid Role" });
       }
 
@@ -111,21 +154,44 @@ export default async function handler(req, res) {
         }
       }
 
-      // --- AWT Job Tracker App: only its own ticket node ---
-      // This app stores all of its job tickets (per-location, per-ticket) under
-      // a single top-level node. It must never touch store alignment, filter,
-      // pump, people, or any other app's data — so we whitelist exactly the one
-      // prefix it owns and reject everything else. The app legitimately writes
-      // whole ticket objects (awtTickets/{loc}/tickets/{id}) as well as
-      // sub-fields of a ticket (.../s, .../notes) and deletes (value = null);
-      // all of those share the awtTickets/ prefix, so one rule covers them.
-      if (isAwtApp) {
-        for (let path in updates) {
-          const isAllowedPath = path.startsWith('awtTickets/');
-
-          if (!isAllowedPath) {
-            console.warn(`Blocked unauthorized AWT App write attempt to: ${path}`);
-            return res.status(403).json({ error: "Access Denied: The AWT Job Tracker can only edit its own ticket nodes." });
+      // --- Generic Vendor Board: may ONLY update tickets already assigned to
+      //     it, and ONLY safe fields. ------------------------------------------
+      // External vendor dashboards (AWT and future boards) share this one role.
+      // There is a SINGLE source of truth: the maintenanceTickets node. A vendor
+      // board does not own a separate node — it edits the same ticket the RM app
+      // owns. To stay safe at scale we enforce, per ticket:
+      //   1. path must be exactly maintenanceTickets/<id> (no other nodes)
+      //   2. the request must include vendorId, and the EXISTING ticket's
+      //      assignedVendorId must equal that vendorId (can't touch others')
+      //   3. immutable fields (storeId, assignedVendorId, assignedTechId,
+      //      shortId, createdAt, createdBy*) cannot be changed — a board can
+      //      move status and append notes/comments/activity, nothing structural.
+      if (isVendorApp) {
+        const vendorId = req.body && req.body.vendorId;
+        if (!vendorId) {
+          return res.status(400).json({ error: "Vendor writes require a vendorId." });
+        }
+        const IMMUTABLE = ["storeId","assignedVendorId","assignedTechId","shortId","createdAt","createdBy","createdByRole","createdByName","category","priority"];
+        for (const path in updates) {
+          const m = /^maintenanceTickets\/([^/]+)$/.exec(path);
+          if (!m) {
+            console.warn(`Blocked vendor write to non-ticket path: ${path}`);
+            return res.status(403).json({ error: "Access Denied: vendor boards may only edit their assigned tickets." });
+          }
+          const ticketId = m[1];
+          const existing = (await db.ref(`maintenanceTickets/${ticketId}`).once('value')).val();
+          if (!existing) {
+            return res.status(404).json({ error: "Ticket not found." });
+          }
+          if (existing.assignedVendorId !== vendorId) {
+            console.warn(`Blocked vendor ${vendorId} from editing ticket owned by ${existing.assignedVendorId}`);
+            return res.status(403).json({ error: "Access Denied: that ticket is not assigned to this vendor." });
+          }
+          const incoming = updates[path] || {};
+          for (const f of IMMUTABLE) {
+            if (Object.prototype.hasOwnProperty.call(incoming, f) && incoming[f] !== existing[f]) {
+              return res.status(403).json({ error: `Access Denied: vendor boards cannot change '${f}'.` });
+            }
           }
         }
       }
