@@ -796,27 +796,163 @@
         overflow-y: auto;
         height: auto;
       }
+
+      /* Header: allow wrapping so the title + toggle don't crush together */
+      header {
+        flex-wrap: wrap;
+        gap: 8px 12px;
+        padding: 10px 14px;
+      }
+      .header-logo h1 {
+        font-size: 1rem;
+        line-height: 1.2;
+      }
+      .header-actions {
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
       .dashboard-container {
         flex-direction: column;
         height: auto;
         overflow-y: visible;
-        gap: 12px;
+        gap: 14px;
         padding: 12px;
       }
+
+      /* Every stacked column is full width with a comfortable list height */
       .column {
-        height: 480px; /* give comfortable vertical lists for each column when stacked */
+        height: 460px;
         flex: none !important;
         width: 100% !important;
         max-width: 100% !important;
         min-width: 100% !important;
       }
+
+      /* PRIORITY: Stores column jumps to the top on mobile and gets more room.
+         Source order is Left(1), Middle(2), Stores(3); reorder visually. */
+      .column:nth-child(3) { order: -1; height: 560px; }
+      .column:nth-child(1) { order: 1; }
+      .column:nth-child(2) { order: 2; }
+
+      /* On phones the Stores grid is a single readable column */
+      #restaurantsList {
+        grid-template-columns: 1fr !important;
+        gap: 10px !important;
+        padding: 10px !important;
+      }
+
+      /* Bigger, easier-to-hit cards */
+      .card {
+        padding: 10px 12px;
+        border-radius: 6px;
+      }
+      .cards-list {
+        gap: 8px;
+        padding: 10px;
+      }
+
+      /* SEARCH: make it the prominent element in the Stores column */
+      .column:nth-child(3) .column-action-bar {
+        padding: 12px 12px 10px;
+        gap: 12px;
+      }
+      #restaurantSearchInput {
+        padding: 12px 40px 12px 38px !important;
+        font-size: 1rem !important;
+        border-radius: 10px !important;
+        border-width: 2px !important;
+        box-shadow: var(--shadow-sm);
+      }
+      #restaurantSearchInput:focus {
+        border-color: var(--primary-color) !important;
+        box-shadow: 0 0 0 3px rgba(37,99,235,0.12) !important;
+        outline: none;
+      }
+      /* Scale the search icon + clear affordance to match */
+      .column:nth-child(3) .column-action-bar > div:first-child > span:first-child {
+        font-size: 1.05rem !important;
+        left: 12px !important;
+      }
+      #clearSearchBtn {
+        font-size: 1.1rem !important;
+        right: 10px !important;
+        width: 30px;
+        height: 30px;
+        line-height: 30px;
+        text-align: center;
+      }
+
+      /* Larger sort dropdowns everywhere */
+      .control-select {
+        font-size: 0.9rem;
+        padding: 10px 12px;
+        min-height: 44px;
+        border-radius: 8px;
+      }
+      #restaurantSortSelect {
+        max-width: none !important;
+        flex: 1 !important;
+        font-size: 0.9rem !important;
+        padding: 10px 12px !important;
+      }
+      .column-action-bar {
+        padding: 10px 12px;
+        gap: 10px;
+      }
+
+      /* Bigger tap targets for all action buttons */
+      .btn {
+        font-size: 0.85rem;
+        padding: 10px 14px;
+        border-radius: 8px;
+        min-height: 40px;
+      }
+      .btn-xs {
+        font-size: 0.8rem;
+        padding: 8px 12px;
+        min-height: 38px;
+      }
+      .column-header {
+        padding: 10px 12px;
+      }
+      .column-title {
+        font-size: 0.95rem;
+      }
+      .btn-icon {
+        min-width: 36px;
+        min-height: 36px;
+        font-size: 0.85rem;
+      }
+
+      /* Comfortable, thumb-friendly form fields in modals */
+      .form-group { margin-bottom: 14px; }
+      .form-group label { font-size: 0.85rem; margin-bottom: 6px; }
+      .form-group input, .form-group select {
+        font-size: 1rem;
+        padding: 12px 12px;
+        border-radius: 8px;
+        min-height: 46px;
+      }
+      .modal-body { padding: 16px; }
+      .modal-footer { padding: 12px 16px; gap: 10px; }
+      .modal-footer .btn { flex: 1; }
+      .filter-message-bar { padding: 10px 12px; font-size: 0.85rem; }
+      .clear-filter-btn { font-size: 0.85rem; padding: 4px; }
+
+      /* Larger lock toggle for easier tapping */
+      .switch { width: 44px; height: 26px; }
+      .slider:before { height: 20px; width: 20px; }
+      input:checked + .slider:before { transform: translateX(18px); }
+
       .history-tray {
         position: relative;
         height: auto !important;
         min-height: 40px;
       }
+      .history-tray-header { padding: 12px 14px; }
       .history-tray-body {
-        max-height: 200px;
+        max-height: 240px;
       }
     }
 
