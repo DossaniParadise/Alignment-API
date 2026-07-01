@@ -631,6 +631,22 @@
     }
 
     /* Column Sort & Search UI styling */
+    /* Suppress the browser's native search field decorations (the built-in
+       clear "x" and results icon) so they don't collide with our custom
+       clear button. type="search" is used to stop username autofill. */
+    #restaurantSearchInput::-webkit-search-decoration,
+    #restaurantSearchInput::-webkit-search-cancel-button,
+    #restaurantSearchInput::-webkit-search-results-button,
+    #restaurantSearchInput::-webkit-search-results-decoration {
+      -webkit-appearance: none;
+      appearance: none;
+      display: none;
+    }
+    #restaurantSearchInput {
+      -webkit-appearance: none;
+      appearance: none;
+    }
+
     .column-action-bar {
       display: flex;
       align-items: center;
@@ -1117,7 +1133,7 @@
   <header>
     <div class="header-logo">
       <h1>Dossani Unified Directory and Alignment</h1>
-      <span>v3.3 Vercel API</span>
+      <span>v3.4 Vercel API</span>
     </div>
     
     <div class="header-actions">
@@ -1262,7 +1278,7 @@
         <!-- Search bar -->
         <div style="position: relative; display: flex; align-items: center; width: 100%;">
           <span style="position: absolute; left: 8px; color: #94a3b8; font-size: 0.8rem; pointer-events: none;">🔍</span>
-          <input type="text" id="restaurantSearchInput" oninput="handleRestaurantSearch(this.value)" placeholder="Search Name, Mgr, Address, Zip..." style="width: 100%; padding: 5px 24px 5px 24px; font-size: 0.75rem; border: 1px solid #cbd5e1; border-radius: 4px; box-sizing: border-box; background-color: var(--bg-white); color: #0f172a;" />
+          <input type="search" id="restaurantSearchInput" name="store-search-field" oninput="handleRestaurantSearch(this.value)" placeholder="Search Name, Mgr, Address, Zip..." autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" data-1p-ignore data-lpignore="true" data-form-type="other" role="searchbox" aria-label="Search stores" style="width: 100%; padding: 5px 24px 5px 24px; font-size: 0.75rem; border: 1px solid #cbd5e1; border-radius: 4px; box-sizing: border-box; background-color: var(--bg-white); color: #0f172a;" />
           <button id="clearSearchBtn" onclick="clearRestaurantSearch()" style="position: absolute; right: 8px; background: none; border: none; color: #94a3b8; font-size: 0.8rem; cursor: pointer; display: none; padding: 0;">✕</button>
         </div>
         <!-- Sort block -->
