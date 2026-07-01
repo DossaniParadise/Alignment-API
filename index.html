@@ -820,20 +820,127 @@
         padding: 12px;
       }
 
-      /* Every stacked column is full width with a comfortable list height */
+      /* Every stacked column is full width */
       .column {
-        height: 460px;
         flex: none !important;
         width: 100% !important;
         max-width: 100% !important;
         min-width: 100% !important;
       }
 
-      /* PRIORITY: Stores column jumps to the top on mobile and gets more room.
-         Source order is Left(1), Middle(2), Stores(3); reorder visually. */
+      /* PRIORITY: Stores column jumps to the top on mobile and keeps its
+         tall, fixed workspace. Source order is Left(1), Middle(2), Stores(3). */
       .column:nth-child(3) { order: -1; height: 560px; }
+
+      /* Secondary columns become accordion shells: no fixed height, no card
+         framing of their own, transparent so the panels read as list rows. */
+      .column:nth-child(1),
+      .column:nth-child(2) {
+        height: auto;
+        background: transparent;
+        border: none;
+        box-shadow: none;
+        overflow: visible;
+      }
       .column:nth-child(1) { order: 1; }
       .column:nth-child(2) { order: 2; }
+
+      /* ---- ACCORDION PANELS (Directors, Technicians, Coaches, Entities) ---- */
+      .m-panel {
+        flex: none !important;
+        display: block !important;
+        overflow: hidden !important;
+        background: var(--bg-white);
+        border: 1px solid var(--neutral-border) !important;
+        border-radius: 12px;
+        box-shadow: var(--shadow-sm);
+        margin-bottom: 10px;
+      }
+      .column:nth-child(1) .m-panel:last-child,
+      .column:nth-child(2) .m-panel:last-child { margin-bottom: 0; }
+
+      /* Header becomes the full-width tap target for the whole row */
+      .m-panel-head {
+        cursor: pointer;
+        padding: 16px 16px;
+        background: var(--bg-white);
+        border-bottom: none;
+        -webkit-tap-highlight-color: transparent;
+        user-select: none;
+      }
+      .m-panel-head .column-title {
+        font-size: 1rem;
+        font-weight: 650;
+        color: #0f172a;
+        flex: 1;
+      }
+      .m-panel-head .column-counter {
+        font-size: 0.72rem;
+        padding: 2px 8px;
+      }
+      /* The +Add button is hidden in the collapsed header; it lives inside the
+         open panel body instead, so a tap on the row only ever toggles. */
+      .m-panel-head .btn { display: none; }
+
+      /* Chevron affordance */
+      .m-chevron {
+        width: 10px;
+        height: 10px;
+        border-right: 2px solid #94a3b8;
+        border-bottom: 2px solid #94a3b8;
+        transform: rotate(-45deg);
+        transition: transform 0.25s ease;
+        margin-right: 2px;
+        flex-shrink: 0;
+      }
+      .m-panel.open .m-chevron { transform: rotate(45deg); }
+      .m-panel.open .m-panel-head { border-bottom: 1px solid var(--neutral-border); }
+      .m-panel.open .m-panel-head .column-title { color: var(--primary-color); }
+
+      /* Collapsed: everything after the header is clipped away.
+         Open: the body area is revealed with a capped, scrollable height. */
+      .m-panel > *:not(.m-panel-head) {
+        max-height: 0;
+        min-height: 0 !important;
+        height: auto !important;
+        flex: none !important;
+        margin: 0 !important;
+        padding-top: 0 !important;
+        padding-bottom: 0 !important;
+        border-width: 0 !important;
+        opacity: 0;
+        transition: max-height 0.28s ease, opacity 0.2s ease, padding 0.28s ease;
+        pointer-events: none;
+      }
+      .m-panel.open > *:not(.m-panel-head) {
+        max-height: 60vh;
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .m-panel.open .cards-list {
+        padding-top: 12px !important;
+        padding-bottom: 12px !important;
+      }
+      .m-panel.open .m-panel-addbar {
+        padding-top: 10px !important;
+        padding-bottom: 12px !important;
+        border-top-width: 1px !important;
+      }
+      .m-panel .cards-list {
+        max-height: 52vh;
+      }
+      /* Re-add button surfaces inside open panels as a full-width action */
+      .m-panel-addbar {
+        display: none;
+        padding: 10px 12px 12px;
+        border-top: 1px solid var(--neutral-border);
+        background: var(--neutral-light);
+      }
+      .m-panel.open .m-panel-addbar { display: block; }
+      .m-panel-addbar .btn { width: 100%; }
+
+      /* Every stacked column is full width with a comfortable list height */
+      .column-legacy-noop { }
 
       /* On phones the Stores grid is a single readable column */
       #restaurantsList {
@@ -1042,9 +1149,10 @@
     <!-- LEFT COLUMN - DIRECTORS & TECHNICIANS -->
     <section class="column" style="display: flex; flex-direction: column;">
       <!-- Directors of Operations (Top Half) -->
-      <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden; border-bottom: 2px solid var(--neutral-border);">
-        <div class="column-header">
+      <div class="m-panel" data-panel="director" style="flex: 1; display: flex; flex-direction: column; overflow: hidden; border-bottom: 2px solid var(--neutral-border);">
+        <div class="column-header m-panel-head">
           <div class="column-title">
+            <span class="m-chevron" aria-hidden="true"></span>
             Directors of Operations
             <span class="column-counter" id="directorCount">0</span>
           </div>
@@ -1057,9 +1165,10 @@
       </div>
 
       <!-- Repair Technicians (Bottom Half) -->
-      <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
-        <div class="column-header">
+      <div class="m-panel" data-panel="technician" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+        <div class="column-header m-panel-head">
           <div class="column-title">
+            <span class="m-chevron" aria-hidden="true"></span>
             Repair Technicians
             <span class="column-counter" id="technicianCount">0</span>
           </div>
@@ -1081,9 +1190,10 @@
     <!-- MIDDLE COLUMN - AREA COACHES & ENTITIES -->
     <section class="column" style="display: flex; flex-direction: column;">
       <!-- Area Coaches (Top Half) -->
-      <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden; border-bottom: 2px solid var(--neutral-border);">
-        <div class="column-header">
+      <div class="m-panel" data-panel="coach" style="flex: 1; display: flex; flex-direction: column; overflow: hidden; border-bottom: 2px solid var(--neutral-border);">
+        <div class="column-header m-panel-head">
           <div class="column-title">
+            <span class="m-chevron" aria-hidden="true"></span>
             Area Coaches
             <span class="column-counter" id="coachCount">0</span>
           </div>
@@ -1112,9 +1222,10 @@
       </div>
 
       <!-- Entities (Bottom Half) -->
-      <div style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
-        <div class="column-header">
+      <div class="m-panel" data-panel="entity" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
+        <div class="column-header m-panel-head">
           <div class="column-title">
+            <span class="m-chevron" aria-hidden="true"></span>
             Entities
             <span class="column-counter" id="entityCount">0</span>
           </div>
@@ -3930,6 +4041,98 @@
         alert("Clipboard export is blocked inside frame permissions. Check your browser or copy direct from screen.");
       });
     }
+  </script>
+
+  <!-- ==================================================================== -->
+  <!-- MOBILE ACCORDION CONTROLLER                                          -->
+  <!-- Turns the four secondary sections into tap-to-expand panels on       -->
+  <!-- phones. Fully inert on desktop; desktop layout is untouched.         -->
+  <!-- ==================================================================== -->
+  <script>
+    (function () {
+      const MOBILE = "(max-width: 768px)";
+
+      function isMobile() {
+        return window.matchMedia(MOBILE).matches;
+      }
+
+      // Move each panel's "+ Add" button into a full-width action bar inside
+      // the panel body, so the collapsed row is a clean single tap target.
+      function ensureAddBars() {
+        document.querySelectorAll(".m-panel").forEach((panel) => {
+          if (panel.querySelector(".m-panel-addbar")) return;
+          const headBtn = panel.querySelector(".m-panel-head .btn");
+          if (!headBtn) return;
+          const bar = document.createElement("div");
+          bar.className = "m-panel-addbar";
+          const clone = headBtn.cloneNode(true);
+          // Preserve the original onclick behavior.
+          clone.removeAttribute("onclick");
+          clone.addEventListener("click", (e) => {
+            e.stopPropagation();
+            headBtn.click();
+          });
+          bar.appendChild(clone);
+          // Insert the action bar as the last child of the panel.
+          panel.appendChild(bar);
+        });
+      }
+
+      function collapseAll() {
+        document.querySelectorAll(".m-panel.open").forEach((p) => p.classList.remove("open"));
+      }
+
+      function togglePanel(panel) {
+        const willOpen = !panel.classList.contains("open");
+        // Accordion behavior: one open at a time within the mobile stack.
+        collapseAll();
+        if (willOpen) {
+          panel.classList.add("open");
+          // Smoothly bring the freshly opened panel into view.
+          setTimeout(() => {
+            panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          }, 60);
+        }
+      }
+
+      let bound = false;
+      function bindHeaders() {
+        if (bound) return;
+        bound = true;
+        document.querySelectorAll(".m-panel-head").forEach((head) => {
+          head.addEventListener("click", (e) => {
+            if (!isMobile()) return; // desktop: do nothing
+            // Ignore taps that originate on the (hidden) header button.
+            if (e.target.closest(".btn")) return;
+            const panel = head.closest(".m-panel");
+            if (panel) togglePanel(panel);
+          });
+        });
+      }
+
+      function apply() {
+        if (isMobile()) {
+          ensureAddBars();
+          bindHeaders();
+          // Start fully collapsed for a calm first impression.
+          if (!document.body.dataset.mInit) {
+            collapseAll();
+            document.body.dataset.mInit = "1";
+          }
+        }
+      }
+
+      if (document.readyState === "loading") {
+        document.addEventListener("DOMContentLoaded", apply);
+      } else {
+        apply();
+      }
+      // Re-evaluate on rotation / resize across the breakpoint.
+      window.matchMedia(MOBILE).addEventListener("change", () => {
+        document.body.removeAttribute("data-m-init");
+        apply();
+      });
+    })();
   </script>
 </body>
 </html>
