@@ -1600,6 +1600,18 @@
         display: none !important; /* Save precious room on small height phones */
       }
     }
+
+    /* ===== Kiosk Map View ===== */
+    .dpm-pin { background: transparent !important; border: none !important; }
+    .leaflet-popup-content-wrapper { border-radius: 10px; }
+    .leaflet-container { background: #0d0a3a; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
+    #mapRailList::-webkit-scrollbar, #mapLegend::-webkit-scrollbar { width: 8px; }
+    #mapRailList::-webkit-scrollbar-thumb, #mapLegend::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.18); border-radius: 4px; }
+    @media (max-width: 760px) {
+      #mapRail { width: 62vw !important; max-width: 300px; }
+      #mapFilters { width: 44vw !important; max-width: 210px; }
+      #mapMissingList { left: 0 !important; right: 0 !important; }
+    }
   </style>
 </head>
 <body>
@@ -1618,6 +1630,16 @@
       <div id="connectionStatus" class="status-badge">
         <div class="status-dot"></div>
         <span id="statusText">Connecting...</span>
+      </div>
+
+      <!-- Directory / Map View Toggle -->
+      <div class="view-toggle-container" style="display: flex; align-items: center; gap: 6px; user-select: none; margin-right: 12px;">
+        <span style="font-size: 0.72rem; font-weight: 600; color: #475569;">🗂️ Directory</span>
+        <label class="switch">
+          <input type="checkbox" id="viewToggle" onchange="__onViewToggle(this)">
+          <span class="slider round"></span>
+        </label>
+        <span style="font-size: 0.72rem; font-weight: 600; color: #475569;">🗺️ Map</span>
       </div>
 
       <!-- Global Lock Toggle -->
@@ -1784,6 +1806,51 @@
     </section>
 
   </main>
+
+  <!-- ==================================================================== -->
+  <!-- MAP VIEW (kiosk fullscreen; hidden until toggled)                    -->
+  <!-- ==================================================================== -->
+  <div id="mapView" style="display:none;flex:1;min-height:0;position:relative;background:#0d0a3a;overflow:hidden;">
+
+    <!-- LEFT RAIL: brand folders + store directory -->
+    <aside id="mapRail" style="position:absolute;top:0;left:0;bottom:0;width:320px;z-index:1000;display:flex;flex-direction:column;background:rgba(15,12,58,0.94);backdrop-filter:blur(6px);border-right:1px solid rgba(255,255,255,0.08);box-shadow:2px 0 18px rgba(0,0,0,0.35);">
+      <div style="padding:16px 16px 10px;border-bottom:1px solid rgba(255,255,255,0.08);">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+          <span style="font-size:1.1rem;">🗺️</span>
+          <span style="color:#fff;font-weight:800;font-size:1rem;letter-spacing:0.02em;">Store Directory</span>
+        </div>
+        <div style="position:relative;display:flex;align-items:center;">
+          <span style="position:absolute;left:10px;color:#8b86c8;font-size:0.85rem;pointer-events:none;">🔍</span>
+          <input type="search" id="mapRailSearch" oninput="__mapRailSearch(this.value)" placeholder="Search stores..." autocomplete="off"
+            style="width:100%;padding:9px 12px 9px 30px;font-size:0.82rem;border:1px solid rgba(255,255,255,0.14);border-radius:8px;background:rgba(255,255,255,0.06);color:#fff;box-sizing:border-box;outline:none;">
+        </div>
+      </div>
+      <div id="mapRailList" style="flex:1;overflow-y:auto;padding:8px;"></div>
+    </aside>
+
+    <!-- RIGHT PANEL: color-by + legend -->
+    <aside id="mapFilters" style="position:absolute;top:0;right:0;bottom:0;width:250px;z-index:1000;display:flex;flex-direction:column;background:rgba(15,12,58,0.94);backdrop-filter:blur(6px);border-left:1px solid rgba(255,255,255,0.08);box-shadow:-2px 0 18px rgba(0,0,0,0.35);">
+      <div style="padding:16px;border-bottom:1px solid rgba(255,255,255,0.08);">
+        <div style="color:#fff;font-weight:800;font-size:0.82rem;letter-spacing:0.04em;text-transform:uppercase;margin-bottom:10px;">Color By</div>
+        <select id="mapColorBy" onchange="__mapSetColorBy(this.value)"
+          style="width:100%;font-size:0.85rem;padding:9px 10px;border:1px solid rgba(255,255,255,0.14);border-radius:8px;background:rgba(255,255,255,0.06);color:#fff;font-weight:600;cursor:pointer;outline:none;">
+          <option value="brand" selected style="background:#1a1650;color:#fff;">Brand</option>
+          <option value="coach" style="background:#1a1650;color:#fff;">Area Coach</option>
+          <option value="director" style="background:#1a1650;color:#fff;">Director</option>
+          <option value="entity" style="background:#1a1650;color:#fff;">Entity</option>
+          <option value="tech" style="background:#1a1650;color:#fff;">Repair Tech</option>
+        </select>
+      </div>
+      <div style="padding:12px 16px 6px;color:#8b86c8;font-size:0.72rem;font-weight:800;letter-spacing:0.04em;text-transform:uppercase;">Legend — tap to filter</div>
+      <div id="mapLegend" style="flex:1;overflow-y:auto;padding:4px 10px 10px;"></div>
+    </aside>
+
+    <!-- FULL-BLEED MAP -->
+    <div id="mapCanvas" style="position:absolute;inset:0;z-index:0;"></div>
+
+    <!-- MISSING-COORDS BANNER -->
+    <div id="mapMissingList" style="display:none;position:absolute;bottom:0;left:320px;right:250px;z-index:900;font-size:0.75rem;color:#fde68a;background:rgba(20,15,50,0.92);border-top:1px solid rgba(253,230,138,0.3);padding:8px 14px;max-height:70px;overflow-y:auto;"></div>
+  </div>
 
   <!-- ==================================================================== -->
   <!-- COLLAPSIBLE DESK HISTORY TRAY                                        -->
@@ -4529,6 +4596,397 @@
         alert("Clipboard export is blocked inside frame permissions. Check your browser or copy direct from screen.");
       });
     }
+
+    /* ===== KIOSK MAP FEATURE (ported) ===== */
+    let __mapView = null;          // Leaflet map instance
+    let __mapMarkers = [];         // {marker, restId, groupKey}
+    let __mapColorBy = "brand";    // brand | coach | director | entity | tech
+    let __mapActiveGroup = null;   // groupKey isolated via legend, or null
+    let __mapColorCache = {};      // groupKey -> color
+    let __mapLegendData = {};
+    let __mapUnassignedCount = 0;
+    let __mapRailSearch = "";      // search text for the left rail
+    let __mapCollapsedFolders = {};// brandKey -> true when collapsed
+
+    // ---- Brand/category buckets (used for BOTH color-by-Brand and rail folders) ----
+    // Ordered rules: first match wins. Falls back to "Other".
+    const __BRAND_RULES = [
+      { key: "fastfood", label: "Fast Food", test: (n) => /burger\s*king|subway/i.test(n) },
+      { key: "carwash",  label: "Car Wash", test: (n) => /car\s*wash|\bwash\b/i.test(n) },
+      { key: "cstore",   label: "C-Store", test: (n) => /\bstop\b|quick\s*stop|travel\s*stop|truck\s*stop/i.test(n) },
+    ];
+    function __mapBrandOf(rest) {
+      const n = (rest.storeName || "").trim();
+      for (const r of __BRAND_RULES) { if (r.test(n)) return { key: r.key, label: r.label }; }
+      return { key: "other", label: "Other" };
+    }
+
+    // Evenly spaced distinct hues, stable per ordered list.
+    const __BRAND_COLORS = {
+      "brand:fastfood": "#e8091b", // red
+      "brand:cstore":   "#2b64c6", // blue
+      "brand:carwash":  "#0ea5a3", // teal
+      "brand:other":    "#8b5cf6"  // purple
+    };
+    function __mapBuildColors(groupKeys) {
+      const colors = {}; const n = Math.max(groupKeys.length, 1);
+      groupKeys.forEach((k, i) => {
+        if (__BRAND_COLORS[k]) { colors[k] = __BRAND_COLORS[k]; return; }
+        const hue = Math.round((i * 360) / n);
+        const sat = 70 + (i % 3) * 7;
+        const light = 48 + (i % 2) * 6;
+        colors[k] = `hsl(${hue}, ${sat}%, ${light}%)`;
+      });
+      return colors;
+    }
+
+    function __mapGroupOf(rest) {
+      if (__mapColorBy === "brand") {
+        const b = __mapBrandOf(rest);
+        return { key: "brand:" + b.key, label: b.label };
+      }
+      if (__mapColorBy === "coach") {
+        if (rest.assignedAreaCoachId && areaCoaches[rest.assignedAreaCoachId])
+          return { key: "coach:" + rest.assignedAreaCoachId, label: areaCoaches[rest.assignedAreaCoachId].name };
+        return null;
+      }
+      if (__mapColorBy === "director") {
+        if (rest.assignedDirectorId && directors[rest.assignedDirectorId])
+          return { key: "dir:" + rest.assignedDirectorId, label: directors[rest.assignedDirectorId].name };
+        return null;
+      }
+      if (__mapColorBy === "tech") {
+        if (rest.assignedRepairTechnicianId && repairTechnicians[rest.assignedRepairTechnicianId])
+          return { key: "tech:" + rest.assignedRepairTechnicianId, label: repairTechnicians[rest.assignedRepairTechnicianId].name };
+        return null;
+      }
+      if (__mapColorBy === "entity") {
+        if (rest.assignedEntityId && entities[rest.assignedEntityId])
+          return { key: "ent:" + rest.assignedEntityId, label: entities[rest.assignedEntityId].name };
+        const txt = (rest.entity || "").trim();
+        if (txt) return { key: "enttxt:" + txt.toLowerCase(), label: txt };
+        return null;
+      }
+      return null;
+    }
+
+    function __mapParseCoord(v) {
+      if (v === undefined || v === null) return null;
+      const s = String(v).trim();
+      if (s === "" || s === "-1") return null;
+      const f = parseFloat(s);
+      if (isNaN(f) || f === -1) return null;
+      return f;
+    }
+    function __mapLatLng(rest) {
+      const lat = __mapParseCoord(rest.latitude), lng = __mapParseCoord(rest.longitude);
+      if (lat === null || lng === null) return null;
+      if (lat < -90 || lat > 90 || lng < -180 || lng > 180) return null;
+      return [lat, lng];
+    }
+
+    // Build a colored teardrop pin as a Leaflet divIcon.
+    function __mapPinIcon(color, hollow) {
+      const fill = hollow ? "#ffffff" : color;
+      const stroke = hollow ? "#94a3b8" : "#ffffff";
+      const inner = hollow ? color : "#ffffff";
+      const html =
+        '<div style="position:relative;width:26px;height:34px;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.5));">' +
+          '<svg width="26" height="34" viewBox="0 0 26 34" xmlns="http://www.w3.org/2000/svg">' +
+            '<path d="M13 0C5.82 0 0 5.82 0 13c0 9.2 13 21 13 21s13-11.8 13-21C26 5.82 20.18 0 13 0z" fill="' + fill + '" stroke="' + stroke + '" stroke-width="2"/>' +
+            '<circle cx="13" cy="13" r="4.5" fill="' + inner + '"/>' +
+          '</svg>' +
+        '</div>';
+      return L.divIcon({ html, className: "dpm-pin", iconSize: [26, 34], iconAnchor: [13, 34], popupAnchor: [0, -30] });
+    }
+
+    window.__mapSetColorBy = function (val) {
+      __mapColorBy = val;
+      __mapActiveGroup = null;
+      renderStoreMap();
+    };
+
+    window.__mapToggleGroup = function (groupKey) {
+      __mapActiveGroup = (__mapActiveGroup === groupKey) ? null : groupKey;
+      __mapApplyDim();
+      __mapRenderLegend();
+    };
+
+    function __mapApplyDim() {
+      __mapMarkers.forEach(({ marker, groupKey }) => {
+        const el = marker._icon;
+        if (!el) return;
+        el.style.opacity = (__mapActiveGroup && groupKey !== __mapActiveGroup) ? "0.2" : "1";
+      });
+    }
+
+    function __mapPopupHtml(restId, rest) {
+      const coachName = rest.assignedAreaCoachId && areaCoaches[rest.assignedAreaCoachId] ? areaCoaches[rest.assignedAreaCoachId].name : null;
+      const dirName = rest.assignedDirectorId && directors[rest.assignedDirectorId] ? directors[rest.assignedDirectorId].name : null;
+      const techName = rest.assignedRepairTechnicianId && repairTechnicians[rest.assignedRepairTechnicianId] ? repairTechnicians[rest.assignedRepairTechnicianId].name : null;
+      const entName = (rest.assignedEntityId && entities[rest.assignedEntityId]) ? entities[rest.assignedEntityId].name : (rest.entity || null);
+      const row = (label, val) => val ? `<div style="margin:2px 0;font-size:12px;"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(String(val))}</div>` : "";
+      return `
+        <div style="min-width:210px;font-family:-apple-system,BlinkMacSystemFont,sans-serif;">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+            <span style="background:#251d7f;color:#fff;font-size:11px;padding:1px 5px;border-radius:4px;font-weight:bold;font-family:monospace;">${escapeHtml(rest.storeNumber || "#")}</span>
+            <span style="font-weight:700;font-size:13px;">${escapeHtml(rest.storeName || "Store")}</span>
+          </div>
+          ${row("Address", rest.address)}
+          ${row("Mgr", rest.storeManager)}
+          ${row("Entity", entName)}
+          ${row("Director", dirName)}
+          ${row("Coach", coachName)}
+          ${row("Tech", techName)}
+          <button onclick="__mapEditStore('${restId}')"
+            style="margin-top:8px;width:100%;background:#1b1660;color:#fff;border:none;border-radius:6px;padding:6px 10px;font-weight:600;font-size:12px;cursor:pointer;">
+            ✎ Edit Store
+          </button>
+        </div>`;
+    }
+
+    window.__mapEditStore = function (restId) {
+      try { openEditModal("restaurant", restId); }
+      catch (e) { console.error("map edit open failed", e); }
+    };
+
+    // Fly to a store's pin and open its popup (from the left rail).
+    window.__mapFlyToStore = function (restId) {
+      if (!__mapView) return;
+      const entry = __mapMarkers.find((m) => m.restId === restId);
+      if (!entry) return;
+      const ll = entry.marker.getLatLng();
+      __mapView.flyTo(ll, 15, { duration: 0.8 });
+      setTimeout(() => { try { entry.marker.openPopup(); } catch (e) {} }, 850);
+    };
+
+    window.__mapRailSearch = function (val) {
+      __mapRailSearch = (val || "").toLowerCase();
+      __mapRenderRail();
+    };
+
+    window.__mapToggleFolder = function (brandKey) {
+      __mapCollapsedFolders[brandKey] = !__mapCollapsedFolders[brandKey];
+      __mapRenderRail();
+    };
+
+    let __mapRailData = [];  // [{brandKey,label,stores:[{restId,rest,onMap}]}]
+
+    function __mapRenderRail() {
+      const rail = document.getElementById("mapRailList");
+      if (!rail) return;
+      const q = __mapRailSearch;
+      let html = "";
+      __mapRailData.forEach((folder) => {
+        const stores = q
+          ? folder.stores.filter((s) => ((s.rest.storeName || "") + " " + (s.rest.storeNumber || "")).toLowerCase().includes(q))
+          : folder.stores;
+        if (stores.length === 0) return;
+        const collapsed = !!__mapCollapsedFolders[folder.brandKey] && !q;
+        html += `
+          <div style="margin-bottom:2px;">
+            <div onclick="__mapToggleFolder('${folder.brandKey}')"
+              style="display:flex;align-items:center;gap:6px;padding:8px 10px;cursor:pointer;color:#e8e6fb;font-weight:700;font-size:0.82rem;border-radius:6px;background:rgba(255,255,255,0.04);">
+              <span style="font-size:0.7rem;transition:transform .15s;transform:rotate(${collapsed ? -90 : 0}deg);">▾</span>
+              <span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">📁 ${escapeHtml(folder.label)}</span>
+              <span style="font-family:monospace;font-size:0.72rem;color:#a8a3e0;">${stores.length}</span>
+            </div>`;
+        if (!collapsed) {
+          html += stores.map((s) => {
+            const dot = s.color
+              ? `<span style="width:9px;height:9px;border-radius:50%;flex-shrink:0;background:${s.onMap ? s.color : 'transparent'};border:2px solid ${s.color};"></span>`
+              : `<span style="width:9px;height:9px;border-radius:50%;flex-shrink:0;border:2px dashed #94a3b8;"></span>`;
+            const noGeo = s.onMap ? "" : `<span title="No coordinates" style="margin-left:auto;font-size:0.65rem;color:#f59e0b;">⚠</span>`;
+            return `
+              <div onclick="${s.onMap ? `__mapFlyToStore('${s.restId}')` : ''}"
+                style="display:flex;align-items:center;gap:8px;padding:6px 10px 6px 26px;cursor:${s.onMap ? 'pointer' : 'default'};color:#cdd0ea;font-size:0.8rem;border-radius:6px;"
+                onmouseover="this.style.background='rgba(255,255,255,0.06)'" onmouseout="this.style.background='transparent'">
+                ${dot}
+                <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(s.rest.storeName || 'Unnamed')}</span>
+                ${noGeo}
+              </div>`;
+          }).join("");
+        }
+        html += `</div>`;
+      });
+      rail.innerHTML = html || '<div style="color:#94a3b8;font-size:0.8rem;padding:12px;">No stores match.</div>';
+    }
+
+    function __mapRenderLegend() {
+      const box = document.getElementById("mapLegend");
+      if (!box) return;
+      const keys = Object.keys(__mapLegendData);
+      let html = keys.map((k) => {
+        const item = __mapLegendData[k];
+        const active = __mapActiveGroup === k;
+        const dim = __mapActiveGroup && !active;
+        return `<div onclick="__mapToggleGroup('${k.replace(/'/g, "\\'")}')"
+            style="display:flex;align-items:center;gap:7px;padding:5px 7px;border-radius:6px;cursor:pointer;opacity:${dim ? 0.4 : 1};background:${active ? 'rgba(255,255,255,0.12)' : 'transparent'};">
+            <span style="width:12px;height:12px;border-radius:50%;flex-shrink:0;background:${item.color};border:2px solid ${item.color};"></span>
+            <span style="font-size:12px;color:#e8e6fb;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${escapeHtml(item.label)}</span>
+            <span style="margin-left:auto;font-size:11px;color:#a8a3e0;font-family:monospace;">${item.count}</span>
+          </div>`;
+      }).join("");
+      html += `<div onclick="__mapToggleGroup('__unassigned__')"
+          style="display:flex;align-items:center;gap:7px;padding:5px 7px;border-radius:6px;cursor:pointer;opacity:${__mapActiveGroup && __mapActiveGroup !== '__unassigned__' ? 0.4 : 1};background:${__mapActiveGroup === '__unassigned__' ? 'rgba(255,255,255,0.12)' : 'transparent'};">
+          <span style="width:12px;height:12px;border-radius:50%;flex-shrink:0;border:2px dashed #94a3b8;"></span>
+          <span style="font-size:12px;color:#a8a3e0;">Unassigned</span>
+          <span style="margin-left:auto;font-size:11px;color:#a8a3e0;font-family:monospace;">${__mapUnassignedCount}</span>
+        </div>`;
+      box.innerHTML = html;
+    }
+
+    // Lazily load Leaflet (CSS+JS) only when the map is first opened.
+    let __leafletLoading = null;
+    function __ensureLeaflet() {
+      if (typeof L !== "undefined") return Promise.resolve(true);
+      if (__leafletLoading) return __leafletLoading;
+      __leafletLoading = new Promise((resolve) => {
+        try {
+          if (!document.getElementById("__leaflet_css")) {
+            const link = document.createElement("link");
+            link.id = "__leaflet_css";
+            link.rel = "stylesheet";
+            link.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+            document.head.appendChild(link);
+          }
+          const s = document.createElement("script");
+          s.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+          s.onload = () => resolve(typeof L !== "undefined");
+          s.onerror = () => resolve(false);
+          document.head.appendChild(s);
+        } catch (e) { resolve(false); }
+      });
+      return __leafletLoading;
+    }
+
+    function renderStoreMap() {
+      const host = document.getElementById("mapCanvas");
+      if (!host) return;
+      if (typeof L === "undefined") {
+        host.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#fca5a5;font-size:14px;padding:16px;text-align:center;">Map library couldn\'t load. Check your internet connection, then toggle back to Map.</div>';
+        return;
+      }
+      if (__mapView) { try { __mapView.remove(); } catch (e) {} __mapView = null; }
+      __mapMarkers = [];
+
+      // Group + color computation
+      const groupOrder = [], groupLabel = {}, groupCount = {};
+      let unassigned = 0;
+      const plotted = [], missing = [];
+      Object.entries(restaurants).forEach(([restId, rest]) => {
+        const ll = __mapLatLng(rest);
+        const g = __mapGroupOf(rest);
+        if (g) {
+          if (!(g.key in groupLabel)) { groupOrder.push(g.key); groupLabel[g.key] = g.label; groupCount[g.key] = 0; }
+          groupCount[g.key]++;
+        } else if (ll) { unassigned++; }
+        if (ll) plotted.push({ restId, rest, ll, groupKey: g ? g.key : null });
+        else missing.push({ restId, rest });
+      });
+      const colors = __mapBuildColors(groupOrder);
+      __mapColorCache = colors;
+      __mapLegendData = {};
+      groupOrder.forEach((k) => { __mapLegendData[k] = { label: groupLabel[k], color: colors[k], count: groupCount[k] }; });
+      __mapUnassignedCount = unassigned;
+
+      // Satellite basemap (Esri World Imagery).
+      const map = L.map(host, { scrollWheelZoom: true, zoomControl: true, attributionControl: true });
+      __mapView = map;
+      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
+        attribution: "Tiles &copy; Esri", maxZoom: 19
+      }).addTo(map);
+      // Subtle place-label overlay so towns/roads are readable on satellite.
+      L.tileLayer("https://stamen-tiles.a.ssl.fastly.net/toner-labels/{z}/{x}/{y}{r}.png", {
+        maxZoom: 19, opacity: 0.9
+      }).addTo(map);
+
+      const bounds = [];
+      plotted.forEach(({ restId, rest, ll, groupKey }) => {
+        const isAssigned = !!groupKey;
+        const color = isAssigned ? (colors[groupKey] || "#64748b") : "#64748b";
+        const marker = L.marker(ll, { icon: __mapPinIcon(color, !isAssigned) }).addTo(map);
+        marker.bindTooltip((rest.storeName || "Store"), { direction: "top", offset: [0, -30] });
+        marker.bindPopup(__mapPopupHtml(restId, rest), { maxWidth: 260 });
+        __mapMarkers.push({ marker, restId, groupKey: groupKey || "__unassigned__" });
+        bounds.push(ll);
+      });
+
+      if (bounds.length === 0) map.setView([31.9686, -99.9018], 6);
+      else if (bounds.length === 1) map.setView(bounds[0], 13);
+      else map.fitBounds(bounds, { padding: [50, 50] });
+
+      // Build left-rail folder data (brand-derived), including no-geo stores.
+      const brandOrder = [], brandLabel = {}, brandStores = {};
+      Object.entries(restaurants).forEach(([restId, rest]) => {
+        const b = __mapBrandOf(rest);
+        if (!(b.key in brandLabel)) { brandOrder.push(b.key); brandLabel[b.key] = b.label; brandStores[b.key] = []; }
+        const g = __mapGroupOf(rest);
+        const onMap = !!__mapLatLng(rest);
+        brandStores[b.key].push({ restId, rest, onMap, color: g ? colors[g.key] : null });
+      });
+      // Corporate first, Other last, rest alphabetical by label.
+      const __BRAND_SORT = { fastfood: 0, cstore: 1, carwash: 2, other: 9 };
+      brandOrder.sort((a, b) => {
+        const ra = (a in __BRAND_SORT) ? __BRAND_SORT[a] : 5;
+        const rb = (b in __BRAND_SORT) ? __BRAND_SORT[b] : 5;
+        if (ra !== rb) return ra - rb;
+        return brandLabel[a].localeCompare(brandLabel[b]);
+      });
+      __mapRailData = brandOrder.map((k) => ({
+        brandKey: k, label: brandLabel[k],
+        stores: brandStores[k].sort((x, y) => (x.rest.storeName || "").localeCompare(y.rest.storeName || ""))
+      }));
+      __mapRenderRail();
+
+      __mapRenderLegend();
+      __mapApplyDim();
+
+      const mbox = document.getElementById("mapMissingList");
+      if (mbox) {
+        if (missing.length === 0) { mbox.style.display = "none"; mbox.innerHTML = ""; }
+        else {
+          mbox.style.display = "block";
+          const names = missing.map(({ rest }) => escapeHtml((rest.storeNumber ? "#" + rest.storeNumber + " " : "") + (rest.storeName || "Unnamed")));
+          mbox.innerHTML = `<strong>${missing.length} store${missing.length === 1 ? "" : "s"} not on map (missing/invalid coordinates):</strong> ${names.join(", ")}`;
+        }
+      }
+
+      setTimeout(() => { try { map.invalidateSize(); } catch (e) {} }, 80);
+    }
+
+    window.__toggleMapView = function (showMap) {
+      const main = document.querySelector("main.dashboard-container");
+      const mapView = document.getElementById("mapView");
+      const histTray = document.getElementById("historyTray");
+      if (!mapView) return;
+      if (showMap) {
+        if (main) main.style.display = "none";
+        if (histTray) histTray.style.display = "none";
+        mapView.style.display = "flex";
+        document.body.classList.add("map-kiosk-active");
+        const host = document.getElementById("mapCanvas");
+        if (typeof L === "undefined") {
+          if (host) host.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#cdd0ea;font-size:14px;">Loading map…</div>';
+          __ensureLeaflet().then((ok) => {
+            if (ok) renderStoreMap();
+            else if (host) host.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#fca5a5;font-size:14px;padding:16px;text-align:center;">Map library couldn\'t load. Check your internet connection, then toggle back to Map.</div>';
+          });
+        } else {
+          renderStoreMap();
+        }
+      } else {
+        mapView.style.display = "none";
+        document.body.classList.remove("map-kiosk-active");
+        if (main) main.style.display = "";
+        if (histTray) histTray.style.display = "";
+      }
+    };
+
+    window.__onViewToggle = function (checkbox) {
+      __toggleMapView(checkbox.checked);
+    };
+
   </script>
 
   <!-- ==================================================================== -->
