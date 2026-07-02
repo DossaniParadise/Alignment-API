@@ -1607,6 +1607,15 @@
     .leaflet-container { background: #0d0a3a; font-family: -apple-system, BlinkMacSystemFont, sans-serif; }
     #mapRailList::-webkit-scrollbar, #mapLegend::-webkit-scrollbar { width: 8px; }
     #mapRailList::-webkit-scrollbar-thumb, #mapLegend::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.18); border-radius: 4px; }
+    /* Touchscreen: momentum scrolling + no accidental text selection / callouts */
+    #mapRailList, #mapLegend { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+    #mapView { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+    #mapView, .leaflet-container { touch-action: pan-x pan-y; }
+    /* Bigger finger targets in the rail */
+    #mapRailList [onclick] { min-height: 40px; }
+    .dpm-pin svg { pointer-events: auto; }
+    /* Larger, easier-to-tap zoom buttons */
+    .leaflet-touch .leaflet-bar a { width: 34px; height: 34px; line-height: 34px; font-size: 20px; }
     @media (max-width: 760px) {
       #mapRail { width: 62vw !important; max-width: 300px; }
       #mapFilters { width: 44vw !important; max-width: 210px; }
@@ -1622,7 +1631,7 @@
   <header>
     <div class="header-logo">
       <h1>Dossani Unified Directory and Alignment</h1>
-      <span>v3.4 Vercel API</span>
+      <span>v3.5 Vercel API</span>
     </div>
     
     <div class="header-actions">
@@ -4601,6 +4610,7 @@
     let __mapView = null;          // Leaflet map instance
     let __mapMarkers = [];         // {marker, restId, groupKey}
     let __mapColorBy = "brand";    // brand | coach | director | entity | tech
+    const __isTouchDevice = (typeof window !== "undefined") && (("ontouchstart" in window) || (navigator && navigator.maxTouchPoints > 0));
     let __mapActiveGroup = null;   // groupKey isolated via legend, or null
     let __mapColorCache = {};      // groupKey -> color
     let __mapLegendData = {};
@@ -4891,23 +4901,54 @@
       __mapUnassignedCount = unassigned;
 
       // Satellite basemap (Esri World Imagery).
-      const map = L.map(host, { scrollWheelZoom: true, zoomControl: true, attributionControl: true });
+      const map = L.map(host, {
+        scrollWheelZoom: true,
+        zoomControl: true,
+        attributionControl: true,
+        // ----- Touchscreen smoothness -----
+        tap: true,                 // enable tap handling on touch devices
+        tapTolerance: 18,          // forgiving tap radius for fingers
+        touchZoom: true,           // pinch to zoom
+        bounceAtZoomLimits: false, // no rubber-band jitter at min/max zoom
+        inertia: true,             // momentum panning
+        inertiaDeceleration: 2600,
+        inertiaMaxSpeed: 2800,
+        zoomSnap: 0.25,            // smoother, finer zoom steps
+        zoomDelta: 0.5,
+        wheelPxPerZoomLevel: 120,
+        maxBoundsViscosity: 0.6,
+        preferCanvas: false
+      });
       __mapView = map;
+
+      // Satellite imagery base.
       L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
-        attribution: "Tiles &copy; Esri", maxZoom: 19
+        attribution: "Tiles &copy; Esri", maxZoom: 19, keepBuffer: 4, updateWhenIdle: false
       }).addTo(map);
-      // Subtle place-label overlay so towns/roads are readable on satellite.
-      L.tileLayer("https://stamen-tiles.a.ssl.fastly.net/toner-labels/{z}/{x}/{y}{r}.png", {
-        maxZoom: 19, opacity: 0.9
+      // Reference overlays: state/country borders, place names, highways & major roads.
+      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", {
+        maxZoom: 19, opacity: 0.9, keepBuffer: 4
       }).addTo(map);
+      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}", {
+        maxZoom: 19, opacity: 0.9, keepBuffer: 4
+      }).addTo(map);
+
+      // Make the zoom control finger-friendly.
+      try {
+        const zc = host.querySelector(".leaflet-control-zoom");
+        if (zc) { zc.style.transform = "scale(1.35)"; zc.style.transformOrigin = "top left"; zc.style.margin = "14px"; }
+      } catch (e) {}
 
       const bounds = [];
       plotted.forEach(({ restId, rest, ll, groupKey }) => {
         const isAssigned = !!groupKey;
         const color = isAssigned ? (colors[groupKey] || "#64748b") : "#64748b";
-        const marker = L.marker(ll, { icon: __mapPinIcon(color, !isAssigned) }).addTo(map);
-        marker.bindTooltip((rest.storeName || "Store"), { direction: "top", offset: [0, -30] });
-        marker.bindPopup(__mapPopupHtml(restId, rest), { maxWidth: 260 });
+        const marker = L.marker(ll, { icon: __mapPinIcon(color, !isAssigned), riseOnHover: true, bubblingMouseEvents: false }).addTo(map);
+        // Tooltips are hover-based; on touch they can flicker and block taps, so only bind on non-touch.
+        if (!__isTouchDevice) {
+          marker.bindTooltip((rest.storeName || "Store"), { direction: "top", offset: [0, -30] });
+        }
+        marker.bindPopup(__mapPopupHtml(restId, rest), { maxWidth: 280, autoPan: true, autoPanPadding: [40, 60] });
         __mapMarkers.push({ marker, restId, groupKey: groupKey || "__unassigned__" });
         bounds.push(ll);
       });
