@@ -122,7 +122,7 @@ export default async function handler(req, res) {
       ------------------------------------------------------------------ */
 
       const ROLES = {
-        ADMIN: "dpm",              // Central Manager: Blanket access to all core routing data
+        ADMIN: "dpm6",              // Central Manager: Blanket access to all core routing data
         FILTER: "filter123",       // Preventative Maintenance App: Restricted access
         MAINTENANCE: "rm123",      // Repair & Maintenance App (internal source of truth)
         VENDOR: "vendor123"        // Generic external vendor boards (CHANGE THIS SECRET)
