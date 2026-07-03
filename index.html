@@ -1614,13 +1614,120 @@
     /* Bigger finger targets in the rail */
     #mapRailList [onclick] { min-height: 40px; }
     .dpm-pin svg { pointer-events: auto; }
+    /* Reference overlay tiles (roads, labels, borders) knocked back so the
+       colored store pins stand out against the satellite base. */
+    .dpm-ref-tiles { filter: saturate(0.55) contrast(0.9) brightness(0.92); }
     /* Larger, easier-to-tap zoom buttons */
     .leaflet-touch .leaflet-bar a { width: 34px; height: 34px; line-height: 34px; font-size: 20px; }
-    @media (max-width: 760px) {
-      #mapRail { width: 62vw !important; max-width: 300px; }
-      #mapFilters { width: 44vw !important; max-width: 210px; }
-      #mapMissingList { left: 0 !important; right: 0 !important; }
+    /* ==================================================================
+       MOBILE MAP — top/bottom dropdown sheets
+       On phones the two side rails become full-width sheets: the Store
+       Directory drops down from the TOP, the Filter panel slides up from
+       the BOTTOM. The map keeps the full screen; two buttons toggle them.
+       Scoped to body.map-kiosk-active + the phone breakpoint, so the
+       desktop / TV layout is completely untouched.
+       ================================================================== */
+
+    /* Floating drawer-toggle buttons + scrim: only exist on mobile map. */
+    #mapDrawerToggles { display: none; }
+    #mapScrim { display: none; }
+
+    @media (max-width: 768px) {
+      /* Both rails become full-width horizontal sheets pinned to an edge. */
+      body.map-kiosk-active #mapRail,
+      body.map-kiosk-active #mapFilters {
+        left: 0 !important;
+        right: 0 !important;
+        width: auto !important;
+        max-width: none !important;
+        height: auto !important;
+        max-height: 62vh;
+        z-index: 1080;
+        transition: transform 0.3s ease;
+        will-change: transform;
+      }
+
+      /* Directory drops DOWN from the top. */
+      body.map-kiosk-active #mapRail {
+        top: 0 !important;
+        bottom: auto !important;
+        border-right: none;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45);
+        border-radius: 0 0 16px 16px;
+        transform: translateY(-104%);
+      }
+      body.map-kiosk-active #mapRail.drawer-open { transform: translateY(0); }
+
+      /* Filter panel slides UP from the bottom. */
+      body.map-kiosk-active #mapFilters {
+        top: auto !important;
+        bottom: 0 !important;
+        border-left: none;
+        border-top: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: 0 -6px 22px rgba(0, 0, 0, 0.45);
+        border-radius: 16px 16px 0 0;
+        transform: translateY(104%);
+      }
+      body.map-kiosk-active #mapFilters.drawer-open { transform: translateY(0); }
+
+      /* Banner spans full width since rails no longer occupy the sides. */
+      body.map-kiosk-active #mapMissingList {
+        left: 0 !important;
+        right: 0 !important;
+      }
+
+      /* Toggle buttons pinned top-left / top-right. */
+      body.map-kiosk-active #mapDrawerToggles {
+        display: flex;
+        justify-content: space-between;
+        position: absolute;
+        top: 12px;
+        left: 12px;
+        right: 12px;
+        z-index: 1100;
+        pointer-events: none; /* only the buttons catch taps */
+      }
+      body.map-kiosk-active .map-drawer-btn {
+        pointer-events: auto;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 9px 14px;
+        font-size: 0.82rem;
+        font-weight: 700;
+        color: #fff;
+        background: rgba(15, 12, 58, 0.92);
+        backdrop-filter: blur(6px);
+        border: 1px solid rgba(255, 255, 255, 0.16);
+        border-radius: 10px;
+        box-shadow: 0 3px 12px rgba(0, 0, 0, 0.4);
+        cursor: pointer;
+        -webkit-tap-highlight-color: transparent;
+      }
+      body.map-kiosk-active .map-drawer-btn:active { transform: scale(0.96); }
+
+      /* Dark scrim behind an open sheet; tap it to close. */
+      body.map-kiosk-active #mapScrim.scrim-show {
+        display: block;
+        position: absolute;
+        inset: 0;
+        z-index: 1050;
+        background: rgba(0, 0, 0, 0.45);
+      }
+
+      /* Close (×) button inside each sheet header on mobile. */
+      body.map-kiosk-active .map-drawer-close {
+        display: inline-flex !important;
+      }
+
+      /* Keep inner scroll areas from overflowing the sheet's max-height. */
+      body.map-kiosk-active #mapRailList { max-height: 44vh; }
+      body.map-kiosk-active #mapLegend { max-height: 40vh; }
     }
+
+    /* Close buttons are hidden unless the mobile query turns them on. */
+    .map-drawer-close { display: none; }
   </style>
 </head>
 <body>
@@ -1631,7 +1738,7 @@
   <header>
     <div class="header-logo">
       <h1>Dossani Unified Directory and Alignment</h1>
-      <span>v3.4 Vercel API</span>
+      <span>v3.6 Vercel API</span>
     </div>
     
     <div class="header-actions">
@@ -1821,12 +1928,22 @@
   <!-- ==================================================================== -->
   <div id="mapView" style="display:none;flex:1;min-height:0;position:relative;background:#0d0a3a;overflow:hidden;">
 
+    <!-- MOBILE-ONLY: floating buttons to summon each side drawer -->
+    <div id="mapDrawerToggles">
+      <button type="button" class="map-drawer-btn" onclick="__mapOpenDrawer('mapRail')">📁 Stores</button>
+      <button type="button" class="map-drawer-btn" onclick="__mapOpenDrawer('mapFilters')">🎨 Filter</button>
+    </div>
+    <!-- MOBILE-ONLY: tap-to-close scrim behind an open drawer -->
+    <div id="mapScrim" onclick="__mapCloseDrawers()"></div>
+
     <!-- LEFT RAIL: brand folders + store directory -->
     <aside id="mapRail" style="position:absolute;top:0;left:0;bottom:0;width:320px;z-index:1000;display:flex;flex-direction:column;background:rgba(15,12,58,0.94);backdrop-filter:blur(6px);border-right:1px solid rgba(255,255,255,0.08);box-shadow:2px 0 18px rgba(0,0,0,0.35);">
       <div style="padding:16px 16px 10px;border-bottom:1px solid rgba(255,255,255,0.08);">
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
           <span style="font-size:1.1rem;">🗺️</span>
           <span style="color:#fff;font-weight:800;font-size:1rem;letter-spacing:0.02em;">Store Directory</span>
+          <button type="button" class="map-drawer-close" onclick="__mapCloseDrawers()"
+            style="margin-left:auto;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.16);color:#fff;width:30px;height:30px;border-radius:8px;font-size:1rem;line-height:1;align-items:center;justify-content:center;cursor:pointer;">✕</button>
         </div>
         <div style="position:relative;display:flex;align-items:center;">
           <span style="position:absolute;left:10px;color:#8b86c8;font-size:0.85rem;pointer-events:none;">🔍</span>
@@ -1840,7 +1957,11 @@
     <!-- RIGHT PANEL: color-by + legend -->
     <aside id="mapFilters" style="position:absolute;top:0;right:0;bottom:0;width:250px;z-index:1000;display:flex;flex-direction:column;background:rgba(15,12,58,0.94);backdrop-filter:blur(6px);border-left:1px solid rgba(255,255,255,0.08);box-shadow:-2px 0 18px rgba(0,0,0,0.35);">
       <div style="padding:16px;border-bottom:1px solid rgba(255,255,255,0.08);">
-        <div style="color:#fff;font-weight:800;font-size:0.82rem;letter-spacing:0.04em;text-transform:uppercase;margin-bottom:10px;">Color By</div>
+        <div style="display:flex;align-items:center;margin-bottom:10px;">
+          <span style="color:#fff;font-weight:800;font-size:0.82rem;letter-spacing:0.04em;text-transform:uppercase;">Color By</span>
+          <button type="button" class="map-drawer-close" onclick="__mapCloseDrawers()"
+            style="margin-left:auto;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.16);color:#fff;width:30px;height:30px;border-radius:8px;font-size:1rem;line-height:1;align-items:center;justify-content:center;cursor:pointer;">✕</button>
+        </div>
         <select id="mapColorBy" onchange="__mapSetColorBy(this.value)"
           style="width:100%;font-size:0.85rem;padding:9px 10px;border:1px solid rgba(255,255,255,0.14);border-radius:8px;background:rgba(255,255,255,0.06);color:#fff;font-weight:600;cursor:pointer;outline:none;">
           <option value="brand" selected style="background:#1a1650;color:#fff;">Brand</option>
@@ -1849,6 +1970,16 @@
           <option value="entity" style="background:#1a1650;color:#fff;">Entity</option>
           <option value="tech" style="background:#1a1650;color:#fff;">Repair Tech</option>
         </select>
+        <label style="display:flex;align-items:center;gap:10px;margin-top:12px;cursor:pointer;user-select:none;">
+          <span class="switch">
+            <input type="checkbox" id="mapAutoZoom" checked onchange="__mapSetAutoZoom(this.checked)">
+            <span class="slider round"></span>
+          </span>
+          <span style="color:#e8e6ff;font-size:0.78rem;font-weight:600;line-height:1.25;">
+            Zoom to filter
+            <span style="display:block;color:#8b86c8;font-size:0.68rem;font-weight:500;">Off = stay at all-stores view</span>
+          </span>
+        </label>
       </div>
       <div style="padding:12px 16px 6px;color:#8b86c8;font-size:0.72rem;font-weight:800;letter-spacing:0.04em;text-transform:uppercase;">Legend — tap to filter</div>
       <div id="mapLegend" style="flex:1;overflow-y:auto;padding:4px 10px 10px;"></div>
@@ -4716,10 +4847,110 @@
       renderStoreMap();
     };
 
+    // ---- Mobile off-canvas drawers -------------------------------------
+    // Only meaningful on phones (CSS gates the visuals); harmless on desktop.
+    window.__mapOpenDrawer = function (id) {
+      const rail = document.getElementById(id);
+      const other = document.getElementById(id === "mapRail" ? "mapFilters" : "mapRail");
+      const scrim = document.getElementById("mapScrim");
+      if (other) other.classList.remove("drawer-open");
+      if (rail) rail.classList.add("drawer-open");
+      if (scrim) scrim.classList.add("scrim-show");
+    };
+
+    window.__mapCloseDrawers = function () {
+      document.querySelectorAll("#mapRail, #mapFilters").forEach((d) => d.classList.remove("drawer-open"));
+      const scrim = document.getElementById("mapScrim");
+      if (scrim) scrim.classList.remove("scrim-show");
+    };
+
+    // True only on the mobile map layout — used to auto-close drawers so the
+    // map's fly animation is visible after a tap.
+    function __mapIsMobileDrawer() {
+      return window.matchMedia("(max-width: 768px)").matches &&
+             document.body.classList.contains("map-kiosk-active");
+    }
+
+    // Smoothly fit the map to a set of markers. Falls back to all pins when
+    // the passed list is empty. A firm zoom cap keeps the filtered group in
+    // its wider context so you can see how it sits amongst everything else,
+    // rather than diving all the way in on tightly-clustered pins.
+    const __MAP_FILTER_MAX_ZOOM = 11; // regional/metro level — never closer
+
+    // User toggle: when off, filtering only dims pins and the map stays put
+    // (at the all-stores view) instead of flying to the filtered group.
+    let __mapAutoZoom = true;
+    window.__mapSetAutoZoom = function (on) {
+      __mapAutoZoom = !!on;
+      // Turning it back on immediately re-fits to the current filter (or all).
+      if (__mapAutoZoom) {
+        const matches = __mapActiveGroup
+          ? __mapMarkers.filter((m) => m.groupKey === __mapActiveGroup)
+          : null;
+        __mapFlyToMarkers(matches);
+      }
+    };
+
+    // Measure how much of the map canvas each side rail is covering right now,
+    // so we can pad the fit and center the group in the VISIBLE gap between
+    // the rails instead of behind them. Returns padding in pixels for each
+    // edge. On the mobile drawer layout the rails slide off-canvas, so they
+    // contribute no padding.
+    function __mapRailPadding() {
+      const base = 40; // breathing room on every edge
+      let left = base, right = base;
+      if (!__mapIsMobileDrawer()) {
+        const railEl = document.getElementById("mapRail");
+        const filtEl = document.getElementById("mapFilters");
+        // Only count a rail if it's actually visible on screen.
+        const visW = (el) => {
+          if (!el) return 0;
+          const cs = window.getComputedStyle(el);
+          if (cs.display === "none" || cs.visibility === "hidden") return 0;
+          return el.offsetWidth || 0;
+        };
+        left += visW(railEl);
+        right += visW(filtEl);
+      }
+      return { top: base, bottom: base, left, right };
+    }
+
+    function __mapFlyToMarkers(entries) {
+      if (!__mapView) return;
+      const list = (entries && entries.length)
+        ? entries
+        : __mapMarkers; // de-selected → fit everything
+      const lls = list.map((e) => e.marker.getLatLng());
+      if (lls.length === 0) return;
+
+      const pad = __mapRailPadding();
+      const opts = {
+        paddingTopLeft: [pad.left, pad.top],
+        paddingBottomRight: [pad.right, pad.bottom],
+        maxZoom: __MAP_FILTER_MAX_ZOOM, // hard ceiling — keeps surrounding area visible
+        duration: 0.9
+      };
+
+      // Single pin: build a tiny bounds around it so the SAME asymmetric
+      // padding logic applies, keeping it centered in the visible gap
+      // (a plain flyTo would center on the whole canvas, behind the rails).
+      if (lls.length === 1) {
+        __mapView.flyToBounds(L.latLngBounds(lls[0], lls[0]), opts);
+        return;
+      }
+      __mapView.flyToBounds(L.latLngBounds(lls), opts);
+    }
+
     window.__mapToggleGroup = function (groupKey) {
       __mapActiveGroup = (__mapActiveGroup === groupKey) ? null : groupKey;
       __mapApplyDim();
       __mapRenderLegend();
+      // Zoom: to the group's pins when selecting, back to all when clearing.
+      const matches = __mapActiveGroup
+        ? __mapMarkers.filter((m) => m.groupKey === __mapActiveGroup)
+        : null;
+      if (__mapIsMobileDrawer()) __mapCloseDrawers();
+      if (__mapAutoZoom) __mapFlyToMarkers(matches);
     };
 
     function __mapApplyDim() {
@@ -4760,14 +4991,46 @@
       catch (e) { console.error("map edit open failed", e); }
     };
 
-    // Fly to a store's pin and open its popup (from the left rail).
+    // Open a store's popup from the rail. When "Zoom to filter" is on we fly
+    // to the pin; when off we stay put (never fly right to it) and just show
+    // its info in place.
     window.__mapFlyToStore = function (restId) {
       if (!__mapView) return;
       const entry = __mapMarkers.find((m) => m.restId === restId);
       if (!entry) return;
+      if (__mapIsMobileDrawer()) __mapCloseDrawers();
+
+      if (!__mapAutoZoom) {
+        // Stay at the current (all-stores) view — just open the popup without
+        // panning the map toward the pin. A tiny delay lets the mobile sheet
+        // finish sliding away first.
+        setTimeout(() => {
+          try {
+            const popup = entry.marker.getPopup();
+            if (popup) popup.options.autoPan = false; // don't nudge the view
+            entry.marker.openPopup();
+          } catch (e) {}
+        }, 320);
+        return;
+      }
+
       const ll = entry.marker.getLatLng();
-      __mapView.flyTo(ll, 15, { duration: 0.8 });
-      setTimeout(() => { try { entry.marker.openPopup(); } catch (e) {} }, 850);
+      // Offset for the side rails so the pin lands in the visible gap between
+      // them rather than hidden behind the rail it was clicked from.
+      const pad = __mapRailPadding();
+      __mapView.flyToBounds(L.latLngBounds(ll, ll), {
+        paddingTopLeft: [pad.left, pad.top],
+        paddingBottomRight: [pad.right, pad.bottom],
+        maxZoom: 15,
+        duration: 0.8
+      });
+      setTimeout(() => {
+        try {
+          const popup = entry.marker.getPopup();
+          if (popup) popup.options.autoPan = true; // restore normal panning
+          entry.marker.openPopup();
+        } catch (e) {}
+      }, 850);
     };
 
     window.__mapRailSearch = function (val) {
@@ -4778,6 +5041,13 @@
     window.__mapToggleFolder = function (brandKey) {
       __mapCollapsedFolders[brandKey] = !__mapCollapsedFolders[brandKey];
       __mapRenderRail();
+      // Zoom to fit all of this brand's on-map stores (unless auto-zoom off).
+      const folder = __mapRailData.find((f) => f.brandKey === brandKey);
+      if (folder && __mapAutoZoom) {
+        const ids = new Set(folder.stores.filter((s) => s.onMap).map((s) => s.restId));
+        const matches = __mapMarkers.filter((m) => ids.has(m.restId));
+        if (matches.length) __mapFlyToMarkers(matches);
+      }
     };
 
     let __mapRailData = [];  // [{brandKey,label,stores:[{restId,rest,onMap}]}]
@@ -4926,11 +5196,12 @@
         attribution: "Tiles &copy; Esri", maxZoom: 19, keepBuffer: 4, updateWhenIdle: false
       }).addTo(map);
       // Reference overlays: state/country borders, place names, highways & major roads.
+      // Toned down so colored store pins read clearly against them.
       L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", {
-        maxZoom: 19, opacity: 0.9, keepBuffer: 4
+        maxZoom: 19, opacity: 0.62, keepBuffer: 4, className: "dpm-ref-tiles"
       }).addTo(map);
       L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}", {
-        maxZoom: 19, opacity: 0.9, keepBuffer: 4
+        maxZoom: 19, opacity: 0.45, keepBuffer: 4, className: "dpm-ref-tiles"
       }).addTo(map);
 
       // Make the zoom control finger-friendly.
@@ -4954,8 +5225,16 @@
       });
 
       if (bounds.length === 0) map.setView([31.9686, -99.9018], 6);
-      else if (bounds.length === 1) map.setView(bounds[0], 13);
-      else map.fitBounds(bounds, { padding: [50, 50] });
+      else {
+        // Rail-aware padding so pins near the edges aren't hidden behind the
+        // side rails on first load (matches the filter fly behavior).
+        const p = __mapRailPadding();
+        map.fitBounds(bounds.length === 1 ? L.latLngBounds(bounds[0], bounds[0]) : L.latLngBounds(bounds), {
+          paddingTopLeft: [p.left, p.top],
+          paddingBottomRight: [p.right, p.bottom],
+          maxZoom: bounds.length === 1 ? 13 : 19
+        });
+      }
 
       // Build left-rail folder data (brand-derived), including no-geo stores.
       const brandOrder = [], brandLabel = {}, brandStores = {};
