@@ -2875,6 +2875,78 @@
     }
 
     // Render entities column (bottom half of Column 2)
+
+    // Normalize an entity name for duplicate/variant detection: collapse all
+    // runs of whitespace to a single space, trim, and lowercase. Two names
+    // that differ ONLY by spacing or case share a normalized form and are
+    // treated as the same real-world entity for flagging purposes.
+    function __normEntityName(name) {
+      return (name || "").replace(/\s+/g, " ").trim().toLowerCase();
+    }
+
+    // Build a report of entity-name variants across BOTH structured entity
+    // records and raw restaurant.entity text, so duplicates can be found and
+    // cleaned. Returns:
+    //   byNorm: normalizedName -> {
+    //     records: [entId,...],           // structured entities matching
+    //     rawTexts: Set(originalText),    // distinct raw spellings seen
+    //     restaurants: [restId,...]       // restaurants using any variant
+    //   }
+    // Any normalized name with more than one distinct original spelling, or
+    // with both a structured record and unmatched raw text, is a "variant
+    // cluster" worth cleaning.
+    function __buildEntityVariantReport() {
+      const byNorm = {};
+      const ensure = (norm) => (byNorm[norm] || (byNorm[norm] = {
+        records: [], rawTexts: new Set(), restaurants: [], spellings: new Set()
+      }));
+
+      Object.keys(entities).forEach((entId) => {
+        const raw = entities[entId].name || "";
+        const norm = __normEntityName(raw);
+        if (!norm) return;
+        const bucket = ensure(norm);
+        bucket.records.push(entId);
+        bucket.spellings.add(raw.trim());
+      });
+
+      Object.keys(restaurants).forEach((restId) => {
+        const rest = restaurants[restId];
+        // Prefer the structured link when present & valid.
+        let raw = "";
+        if (rest.assignedEntityId && entities[rest.assignedEntityId]) {
+          raw = entities[rest.assignedEntityId].name || "";
+        } else {
+          raw = rest.entity || "";
+        }
+        const norm = __normEntityName(raw);
+        if (!norm) return;
+        const bucket = ensure(norm);
+        bucket.restaurants.push(restId);
+        bucket.spellings.add(raw.trim());
+        if (!(rest.assignedEntityId && entities[rest.assignedEntityId])) {
+          if ((rest.entity || "").trim()) bucket.rawTexts.add(rest.entity.trim());
+        }
+      });
+
+      return byNorm;
+    }
+
+    // For a given entity record, return the variant cluster it belongs to
+    // (or null). Used to decide whether to show a ⚠ "possible duplicate" flag.
+    function __entityVariantInfo(entId) {
+      const report = __buildEntityVariantReport();
+      const norm = __normEntityName(entities[entId] && entities[entId].name);
+      const cluster = report[norm];
+      if (!cluster) return null;
+      const distinctSpellings = cluster.spellings.size;
+      const recordCount = cluster.records.length;
+      // A flag is warranted when the same normalized name appears with more
+      // than one spelling, OR under more than one structured record.
+      const isVariant = distinctSpellings > 1 || recordCount > 1;
+      return { cluster, distinctSpellings, recordCount, isVariant };
+    }
+
     function renderEntities() {
       const listDiv = document.getElementById("entitiesList");
       const countSpan = document.getElementById("entityCount");
@@ -2892,10 +2964,25 @@
         return;
       }
 
+      // Build the variant report once for this render so each card can show a
+      // duplicate flag without recomputing.
+      const variantReport = __buildEntityVariantReport();
+      const normFlag = {}; // norm -> {spellings:[...], recordCount}
+      Object.keys(variantReport).forEach((norm) => {
+        const c = variantReport[norm];
+        if (c.spellings.size > 1 || c.records.length > 1) {
+          normFlag[norm] = { spellings: Array.from(c.spellings), recordCount: c.records.length };
+        }
+      });
+
       keys.forEach((entId) => {
         const ent = entities[entId];
         const isSelected = selectedEntityId === entId;
         const isExpanded = expandedEntityId === entId;
+        const flag = normFlag[__normEntityName(ent.name)];
+        const flagBadge = flag
+          ? `<span class="entity-dupe-flag" title="Possible duplicate — these spellings share the same name:&#10;• ${flag.spellings.map(s => s.replace(/"/g, '&quot;')).join('&#10;• ')}" style="margin-left:6px;font-size:0.68rem;font-weight:700;color:#b45309;background:#fef3c7;border:1px solid #fcd34d;border-radius:6px;padding:1px 6px;cursor:help;">⚠ variant</span>`
+          : "";
         
         const card = document.createElement("div");
         card.className = `card ${isSelected ? 'selected' : ''}`;
@@ -2911,7 +2998,7 @@
         if (isExpanded) {
           card.innerHTML = `
             <div class="card-header-row">
-              <div class="card-title">${escapeHtml(ent.name)} <span style="font-weight: normal; color: #a855f7; font-size: 0.72rem; margin-left: 4px;">(Active)</span></div>
+              <div class="card-title">${escapeHtml(ent.name)} <span style="font-weight: normal; color: #a855f7; font-size: 0.72rem; margin-left: 4px;">(Active)</span>${flagBadge}</div>
               <div class="card-actions">
                 <button class="btn btn-icon btn-icon-edit" onclick="event.stopPropagation(); openEditModal('entity', '${entId}')">✎</button>
                 <button class="btn btn-icon btn-icon-delete" onclick="event.stopPropagation(); deleteEntry('entity', '${entId}')">✕</button>
@@ -2931,7 +3018,7 @@
         } else {
           card.innerHTML = `
             <div class="card-header-row" style="margin-bottom: 0; align-items: center;">
-              <div class="card-title">${escapeHtml(ent.name)}</div>
+              <div class="card-title">${escapeHtml(ent.name)}${flagBadge}</div>
               <span style="font-size: 0.65rem; color: #a1a1aa; font-weight: 500;">Click to reveal</span>
             </div>
           `;
@@ -4802,13 +4889,47 @@
         return null;
       }
       if (__mapColorBy === "entity") {
-        if (rest.assignedEntityId && entities[rest.assignedEntityId])
-          return { key: "ent:" + rest.assignedEntityId, label: entities[rest.assignedEntityId].name };
-        const txt = (rest.entity || "").trim();
-        if (txt) return { key: "enttxt:" + txt.toLowerCase(), label: txt };
-        return null;
+        // Resolve to the entity name via the structured link when valid,
+        // otherwise the raw text field.
+        let raw = "";
+        if (rest.assignedEntityId && entities[rest.assignedEntityId]) {
+          raw = entities[rest.assignedEntityId].name || "";
+        } else {
+          raw = rest.entity || "";
+        }
+        const norm = __normEntityName(raw);
+        if (!norm) return null;
+        // Key by NORMALIZED name so every spelling/spacing/case variant of the
+        // same entity groups together — clicking the filter shows all its
+        // stores. The label flags when multiple spellings feed one group so
+        // the fragmentation is still visible on the map for cleanup.
+        const label = __mapEntityLabelFor(norm, raw.trim());
+        return { key: "entnorm:" + norm, label: label };
       }
       return null;
+    }
+
+    // Cached variant report for a single map render pass (cleared each render).
+    let __mapVariantReportCache = null;
+    function __mapVariantReport() {
+      if (!__mapVariantReportCache) __mapVariantReportCache = __buildEntityVariantReport();
+      return __mapVariantReportCache;
+    }
+
+    // Produce a display label for a normalized entity group. If the group is
+    // fed by more than one distinct spelling, append a ⚠ marker with the count
+    // so it's obvious on the map/legend that these records need cleanup.
+    function __mapEntityLabelFor(norm, fallbackSpelling) {
+      try {
+        const report = __mapVariantReport();
+        const cluster = report[norm];
+        if (cluster && cluster.spellings.size > 1) {
+          // Pick the first spelling as the display name.
+          const primary = Array.from(cluster.spellings)[0] || fallbackSpelling;
+          return primary + " ⚠×" + cluster.spellings.size;
+        }
+      } catch (e) {}
+      return fallbackSpelling;
     }
 
     function __mapParseCoord(v) {
@@ -5149,6 +5270,7 @@
       }
       if (__mapView) { try { __mapView.remove(); } catch (e) {} __mapView = null; }
       __mapMarkers = [];
+      __mapVariantReportCache = null; // rebuild variant report for this render
 
       // Group + color computation
       const groupOrder = [], groupLabel = {}, groupCount = {};
