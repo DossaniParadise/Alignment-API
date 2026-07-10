@@ -14,6 +14,25 @@ if (!admin.apps.length) {
 
 const db = admin.database();
 
+// ─────────────────────────────────────────────────────────────────────
+// COST CONTROL #1: statuses hidden from GET responses by default.
+// 291 of 387 tickets were status "closed" (~72% of the tickets payload),
+// so excluding them shrinks every response dramatically. Callers that
+// genuinely need history opt back in with  ?includeClosed=1
+// To also hide "finished" tickets by default, add it to this array.
+// ─────────────────────────────────────────────────────────────────────
+const HIDDEN_STATUSES = ["closed"];
+
+function filterTickets(allTickets, includeClosed) {
+  if (includeClosed) return allTickets;
+  const out = {};
+  for (const [id, t] of Object.entries(allTickets)) {
+    if (t && HIDDEN_STATUSES.includes(t.status)) continue;
+    out[id] = t;
+  }
+  return out;
+}
+
 export default async function handler(req, res) {
   // CORS Headers - Allow frontend apps to communicate with this API
   res.setHeader('Access-Control-Allow-Credentials', true);
@@ -28,10 +47,48 @@ export default async function handler(req, res) {
 
   // =======================================================================
   // 1. READ-ONLY ROUTE (GET) - Completely Open
-  // Returns the entire master database JSON payload for apps to consume.
+  // Returns the master database JSON payload for apps to consume,
+  // minus closed tickets unless ?includeClosed=1 is passed.
   // =======================================================================
   if (req.method === 'GET') {
     try {
+      // ───────────────────────────────────────────────────────────────
+      // COST CONTROL #2: let Vercel's CDN cache GET responses.
+      // s-maxage=60  → the CDN serves repeat requests for 60s without
+      //                invoking this function (zero Fast Origin Transfer,
+      //                zero invocation). Each distinct query string
+      //                (?vendor=x, ?includeClosed=1) is cached separately.
+      // stale-while-revalidate=300 → after the 60s, the CDN keeps serving
+      //                the stale copy instantly while refreshing once in
+      //                the background, so users never wait.
+      // Raise s-maxage if your apps tolerate staler data; POST writes do
+      // NOT purge this cache, so reads can lag writes by up to s-maxage.
+      // ───────────────────────────────────────────────────────────────
+      res.setHeader('Cache-Control', 's-maxage=60, stale-while-revalidate=300');
+
+      const includeClosed =
+        req.query && (req.query.includeClosed === '1' || req.query.includeClosed === 'true');
+
+      // ───────────────────────────────────────────────────────────────
+      // CLOSED-ONLY READ:  GET ...?closed=only   (added for RM app 2.7.4)
+      // Returns JUST the hidden-status tickets plus their count. The RM
+      // app calls this only when the Closed tab is actually opened, so
+      // the ~72% of payload that is closed history is never downloaded
+      // during normal use or polling.
+      // ───────────────────────────────────────────────────────────────
+      if (req.query && req.query.closed === 'only') {
+        const snapshot = await db.ref('maintenanceTickets').once('value');
+        const all = snapshot.val() || {};
+        const closedOnly = {};
+        for (const [id, t] of Object.entries(all)) {
+          if (t && HIDDEN_STATUSES.includes(t.status)) closedOnly[id] = t;
+        }
+        return res.status(200).json({
+          maintenanceTickets: closedOnly,
+          closedTicketCount: Object.keys(closedOnly).length
+        });
+      }
+
       // ───────────────────────────────────────────────────────────────
       // SCOPED VENDOR READ:  GET ...?vendor=<vendorId>
       // Returns ONLY the data an external vendor board needs:
@@ -50,7 +107,8 @@ export default async function handler(req, res) {
       if (vendorParam) {
         const snapshot = await db.ref('/').once('value');
         const master = snapshot.val() || {};
-        const allTickets = master.maintenanceTickets || {};
+        // Closed tickets are dropped here too unless ?includeClosed=1.
+        const allTickets = filterTickets(master.maintenanceTickets || {}, includeClosed);
         const allStores  = master.restaurants || {};
         const allVendors = master.maintenanceVendors || {};
 
@@ -93,7 +151,15 @@ export default async function handler(req, res) {
       }
 
       const snapshot = await db.ref('/').once('value');
-      return res.status(200).json(snapshot.val());
+      const master = snapshot.val() || {};
+      if (master.maintenanceTickets) {
+        // Tiny metadata field (~30 bytes) so apps can show a "Closed" count
+        // without ever downloading the closed tickets themselves.
+        master.closedTicketCount = Object.values(master.maintenanceTickets)
+          .filter(t => t && HIDDEN_STATUSES.includes(t.status)).length;
+        master.maintenanceTickets = filterTickets(master.maintenanceTickets, includeClosed);
+      }
+      return res.status(200).json(master);
     } catch (error) {
       return res.status(500).json({ error: 'Internal Server Error' });
     }
