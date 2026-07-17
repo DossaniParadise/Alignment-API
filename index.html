@@ -923,7 +923,9 @@
       .history-tray.mobile-open { display: block; }
       #historyTrayFab {
         display: flex; align-items: center; gap: 4px;
-        position: fixed; right: 14px; bottom: 14px; z-index: 900;
+        position: fixed; right: 14px; z-index: 900;
+        /* Sits above the floating tab bar rather than behind it. */
+        bottom: calc(76px + env(safe-area-inset-bottom, 0px));
         background: var(--primary-color, #251d7f); color: #fff;
         border: none; border-radius: 999px; padding: 10px 14px;
         font-size: 1rem; font-weight: 700; cursor: pointer;
@@ -1340,8 +1342,10 @@
       .header-logo h1 { font-size: 0.95rem; line-height: 1.2; }
 
       /* The dashboard becomes a single full-height scroll area. */
+      /* Header (~56) + floating pill (~62 incl. gap) + safe area. */
       .dashboard-container {
-        flex-direction: column; height: calc(100vh - 108px);
+        flex-direction: column;
+        height: calc(100vh - 56px - 72px - env(safe-area-inset-bottom, 0px));
         padding: 6px; gap: 0; overflow: hidden;
       }
       .column {
@@ -1360,22 +1364,59 @@
       .card { padding: 10px 12px; }
       .card-actions .btn { min-width: 34px; min-height: 34px; }
 
-      /* --- bottom tab bar --- */
+      /* Floating pill tab bar, per the reference: detached from the edge, brand
+         navy, active tab marked by a filled circle behind the icon. */
       .m-tabs {
-        display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000;
-        background: #fff; border-top: 1px solid var(--neutral-border);
-        padding-bottom: env(safe-area-inset-bottom, 0);
-        box-shadow: 0 -2px 10px rgba(0,0,0,.08);
+        display: flex; position: fixed; z-index: 1000;
+        left: 12px; right: 12px; bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+        background: var(--navy-700, #251d7f);
+        border-radius: 22px; padding: 6px 4px;
+        box-shadow: 0 6px 20px rgba(37, 29, 127, .35);
       }
       .m-tab {
-        flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
-        border: none; background: none; cursor: pointer; padding: 7px 2px 6px;
-        color: #94a3b8; font-size: .58rem; font-weight: 600; letter-spacing: .02em;
+        flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+        border: none; background: none; cursor: pointer; padding: 4px 2px;
+        color: rgba(255, 255, 255, .62);
+        font-size: .55rem; font-weight: 600; letter-spacing: .03em;
+        transition: color .18s ease;
+        -webkit-tap-highlight-color: transparent;
       }
-      .m-tab-ico { font-size: 1.05rem; line-height: 1; }
-      .m-tab-n { font-size: .52rem; opacity: .75; }
-      .m-tab.on { color: var(--primary-color, #251d7f); }
-      .m-tab.on .m-tab-ico { transform: translateY(-1px); }
+      /* The circle is the active marker; it scales in rather than popping. */
+      .m-tab-ico {
+        position: relative; display: grid; place-items: center;
+        width: 32px; height: 32px; border-radius: 50%;
+      }
+      .m-tab-ico::before {
+        content: ""; position: absolute; inset: 0; border-radius: 50%;
+        background: #fff; transform: scale(0); transition: transform .18s ease;
+      }
+      .m-tab-ico svg {
+        position: relative; width: 18px; height: 18px;
+        fill: none; stroke: currentColor; stroke-width: 1.7;
+        stroke-linecap: round; stroke-linejoin: round;
+      }
+      .m-tab.on { color: #fff; }
+      .m-tab.on .m-tab-ico::before { transform: scale(1); }
+      .m-tab.on .m-tab-ico { color: var(--navy-700, #251d7f); }
+
+      /* Count badge: a dot, not a number, so it reads at a glance. */
+      .m-dot {
+        position: absolute; top: 1px; right: 1px;
+        width: 7px; height: 7px; border-radius: 50%;
+        background: #f59e0b; border: 1.5px solid var(--navy-700, #251d7f);
+        display: none;
+      }
+      .m-dot.has { display: block; }
+      .m-tab.on .m-dot { border-color: #fff; }
+
+      @media (prefers-reduced-motion: reduce) {
+        .m-tab, .m-tab-ico::before { transition: none; }
+      }
+
+      /* Full-screen map takes over the viewport; the tab bar would float on top
+         of it and its drawers. Hide it there - the map has its own close control. */
+      body.map-kiosk-active .m-tabs,
+      body.map-kiosk-active #historyTrayFab { display: none; }
     }
 
     /* Tab bar is mobile-only. */
@@ -1449,9 +1490,19 @@
        - contrast/brightness lift the labels off the dark imagery
        Pins sit above these and carry their own white outline, so they stay
        legible even with the overlays turned up. */
-    .dpm-ref-tiles { filter: saturate(1.45) contrast(1.18) brightness(1.12); }
-    /* Roads get a touch more warmth than the label layer. */
-    .dpm-road-tiles { filter: saturate(1.75) contrast(1.22) brightness(1.15) hue-rotate(-6deg); }
+    /* Reference overlays over satellite imagery, tuned to read like Google's
+       basemap: warm highways, crisp labels.
+       PERF: these filters run on every tile during pan/zoom. hue-rotate and long
+       chains force a per-pixel re-rasterize and defeat GPU layer caching, which
+       stutters on WiFi latency. Two cheap, hardware-accelerated functions only. */
+    .dpm-ref-tiles, .dpm-road-tiles { filter: saturate(1.5) contrast(1.15); }
+
+    /* Promote tiles to their own GPU layer only while the map is actually
+       moving. Leaving will-change on permanently costs memory on phones. */
+    .leaflet-drag-target .dpm-ref-tiles,
+    .leaflet-drag-target .dpm-road-tiles,
+    .leaflet-zoom-anim .dpm-ref-tiles,
+    .leaflet-zoom-anim .dpm-road-tiles { will-change: transform; }
     /* Larger, easier-to-tap zoom buttons */
     .leaflet-touch .leaflet-bar a { width: 34px; height: 34px; line-height: 34px; font-size: 20px; }
     /* ==================================================================
@@ -1826,13 +1877,19 @@
   <!-- ==================================================================== -->
   <!-- COLLAPSIBLE DESK HISTORY TRAY                                        -->
   <!-- ==================================================================== -->
-  <!-- Mobile bottom tab bar. Stores is the default view. -->
-  <nav class="m-tabs" id="mTabs">
-    <button class="m-tab" data-tab="director"   onclick="mShow('director')"><span class="m-tab-ico">👔</span>DO<span class="m-tab-n" id="mnDirector"></span></button>
-    <button class="m-tab" data-tab="technician" onclick="mShow('technician')"><span class="m-tab-ico">🛠</span>Techs<span class="m-tab-n" id="mnTech"></span></button>
-    <button class="m-tab" data-tab="coach"      onclick="mShow('coach')"><span class="m-tab-ico">📋</span>Coaches<span class="m-tab-n" id="mnCoach"></span></button>
-    <button class="m-tab" data-tab="entity"     onclick="mShow('entity')"><span class="m-tab-ico">🏢</span>Entities<span class="m-tab-n" id="mnEntity"></span></button>
-    <button class="m-tab on" data-tab="store"   onclick="mShow('store')"><span class="m-tab-ico">🍔</span>Stores<span class="m-tab-n" id="mnStore"></span></button>
+  <!-- Mobile bottom tab bar. Icons are inline SVG (emoji render differently per
+       device and would break the monochrome look). Stores is the default view. -->
+  <nav class="m-tabs" id="mTabs" aria-label="Sections">
+    <button class="m-tab" data-tab="director" onclick="mShow('director')" aria-label="Directors of Operations">
+      <span class="m-tab-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z"/><path d="M4 21v-1a6 6 0 0 1 6-6h4a6 6 0 0 1 6 6v1"/><path d="M9 13.5 12 17l3-3.5"/></svg><i class="m-dot" id="mnDirector"></i></span>DO</button>
+    <button class="m-tab" data-tab="technician" onclick="mShow('technician')" aria-label="Repair technicians">
+      <span class="m-tab-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 3.5a4.5 4.5 0 0 0-5.9 5.7L3.4 15.4a2 2 0 0 0 2.8 2.8l6.2-6.2a4.5 4.5 0 0 0 5.7-5.9l-2.7 2.7-2.3-.6-.6-2.3 2.7-2.7Z"/></svg><i class="m-dot" id="mnTech"></i></span>Techs</button>
+    <button class="m-tab" data-tab="coach" onclick="mShow('coach')" aria-label="Area coaches">
+      <span class="m-tab-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 3.5h6v3H9z"/><path d="M8.5 11h7M8.5 15h4.5"/></svg><i class="m-dot" id="mnCoach"></i></span>Coaches</button>
+    <button class="m-tab" data-tab="entity" onclick="mShow('entity')" aria-label="Legal entities">
+      <span class="m-tab-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21V6l7-3 7 3v15"/><path d="M4 21h16"/><path d="M9 9h1.5M13.5 9H15M9 13h1.5M13.5 13H15M9 17h6"/></svg><i class="m-dot" id="mnEntity"></i></span>Entities</button>
+    <button class="m-tab on" data-tab="store" onclick="mShow('store')" aria-label="Stores">
+      <span class="m-tab-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10h16v9a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-9Z"/><path d="M3.5 10 5 4.5h14L20.5 10"/><path d="M9.5 14h5"/></svg><i class="m-dot" id="mnStore"></i></span>Stores</button>
   </nav>
 
   <!-- Mobile: the tray is hidden by default; this button brings it back. -->
@@ -5268,11 +5325,11 @@
       if (host) host.scrollTop = 0;
     }
 
-    // Live counts on the tabs, so the bar doubles as an at-a-glance summary.
+    // Counts show as a dot, not a number: presence at a glance, no clutter.
     function mSyncCounts() {
       const set = (id, n) => {
         const el = document.getElementById(id);
-        if (el) el.innerText = n ? String(n) : "";
+        if (el) el.classList.toggle("has", n > 0);
       };
       set("mnDirector", Object.keys(directors).length);
       set("mnTech",     Object.keys(repairTechnicians).length);
@@ -6000,16 +6057,21 @@
 
       // Satellite imagery base.
       L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}", {
-        attribution: "Tiles &copy; Esri", maxZoom: 19, keepBuffer: 4, updateWhenIdle: false
+        attribution: "Tiles &copy; Esri", maxZoom: 19, keepBuffer: 4,
+        updateWhenIdle: false, updateWhenZooming: false
       }).addTo(map);
-      // Reference overlays: state/country borders, place names, highways & major roads.
-      // Turned up (was 0.62 / 0.45) so highways and city labels read like the
-      // Google satellite basemap. Pins have white outlines and sit on top.
+
+      // Labels/borders + highways. PERF: updateWhenZooming:false stops Leaflet
+      // requesting intermediate tiles mid-zoom - the single biggest source of
+      // wasted requests on higher-latency WiFi. keepBuffer holds tiles just
+      // outside the viewport so short pans don't re-fetch.
       L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", {
-        maxZoom: 19, opacity: 0.95, keepBuffer: 4, className: "dpm-ref-tiles"
+        maxZoom: 19, opacity: 0.92, keepBuffer: 4, className: "dpm-ref-tiles",
+        updateWhenIdle: false, updateWhenZooming: false
       }).addTo(map);
       L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}", {
-        maxZoom: 19, opacity: 0.9, keepBuffer: 4, className: "dpm-road-tiles"
+        maxZoom: 19, opacity: 0.88, keepBuffer: 4, className: "dpm-road-tiles",
+        updateWhenIdle: false, updateWhenZooming: false
       }).addTo(map);
 
       // Make the zoom control finger-friendly.
