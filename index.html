@@ -2092,11 +2092,18 @@
           </div>
 
           <div class="form-group" id="groupAssignedCoach" style="display: none;">
-            <label for="selectAssignedCoach">Assigned Area Coach</label>
-            <select id="selectAssignedCoach" onchange="syncDirectorFromCoach(this.value)">
-              <option value="">-- Direct Report to Director --</option>
+            <label>Assigned Area Coaches <span style="font-weight:400;color:#94a3b8;font-size:0.7rem;">(select any number)</span></label>
+            <div id="coachCheckList" style="border:1px solid var(--neutral-border);border-radius:4px;padding:6px 8px;max-height:110px;overflow-y:auto;background:#fff;">
               <!-- Populated dynamically -->
-            </select>
+            </div>
+            <div id="coachDirectorHint" style="font-size:0.68rem;color:#64748b;margin-top:4px;"></div>
+          </div>
+
+          <div class="form-group" id="groupAssignedTech" style="display: none;">
+            <label>Assigned Repair Technicians <span style="font-weight:400;color:#94a3b8;font-size:0.7rem;">(select any number)</span></label>
+            <div id="techCheckList" style="border:1px solid var(--neutral-border);border-radius:4px;padding:6px 8px;max-height:110px;overflow-y:auto;background:#fff;">
+              <!-- Populated dynamically -->
+            </div>
           </div>
 
         </div>
@@ -2149,18 +2156,46 @@
         </div>
 
         <!-- Parse Preview Area -->
-        <div style="border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; background-color: #f8fafc; max-height: 200px; overflow-y: auto;">
-          <div style="font-size: 0.78rem; font-weight: 700; color: #475569; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center;">
-            <span>Import Preview FEED</span>
-            <span id="batchCountBadge" style="background-color: #e2e8f0; color: #475569; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 600;">0 rows</span>
+        <div style="border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; background-color: #f8fafc;">
+          <div style="font-size: 0.78rem; font-weight: 700; color: #475569; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;">
+            <span>Import Preview</span>
+            <span style="display: flex; gap: 6px; align-items: center;">
+              <span id="batchNewBadge" style="background-color: #dcfce7; color: #166534; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 700;">0 new</span>
+              <span id="batchUpdBadge" style="background-color: #fee2e2; color: #991b1b; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 700;">0 changed</span>
+              <span id="batchCountBadge" style="background-color: #e2e8f0; color: #475569; padding: 2px 8px; border-radius: 10px; font-size: 0.7rem; font-weight: 600;">0 rows</span>
+            </span>
           </div>
-          <div id="batchPreviewRows" style="font-size: 0.75rem; color: #64748b; line-height: 1.4;">
-            <p style="text-align: center; font-style: italic; color: #94a3b8; padding: 15px 0;">No raw store data pasted yet.</p>
+
+          <div id="batchLegend" style="display: none; font-size: 0.68rem; color: #64748b; margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px dashed #cbd5e1; display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+            <span><span style="display:inline-block;width:9px;height:9px;background:#22c55e;border-radius:2px;margin-right:4px;"></span>New store</span>
+            <span><span style="display:inline-block;width:9px;height:9px;background:#ef4444;border-radius:2px;margin-right:4px;"></span>Overwrites existing value</span>
+            <span><span style="display:inline-block;width:9px;height:9px;background:#cbd5e1;border-radius:2px;margin-right:4px;"></span>Unchanged</span>
+            <span style="margin-left:auto; font-style: italic;">Fields are editable &mdash; click to fix before importing.</span>
+          </div>
+
+          <div id="batchGeoWrap" style="display: none; margin-bottom: 10px;">
+            <div style="display: flex; justify-content: space-between; font-size: 0.7rem; font-weight: 600; color: #475569; margin-bottom: 3px;">
+              <span id="batchGeoLabel">Looking up coordinates…</span>
+              <span id="batchGeoCount">0 / 0</span>
+            </div>
+            <div style="width: 100%; height: 8px; background: #e2e8f0; border-radius: 999px; overflow: hidden;">
+              <div id="batchGeoBar" style="width: 0%; height: 100%; background: linear-gradient(90deg,#3b82f6,#22c55e); transition: width 0.25s ease;"></div>
+            </div>
+          </div>
+
+          <div style="max-height: 260px; overflow-y: auto;">
+            <div id="batchPreviewRows" style="font-size: 0.75rem; color: #64748b; line-height: 1.4;">
+              <p style="text-align: center; font-style: italic; color: #94a3b8; padding: 15px 0;">No raw store data pasted yet.</p>
+            </div>
           </div>
         </div>
       </div>
       
-      <div class="modal-footer">
+      <div class="modal-footer" style="gap: 8px;">
+        <label style="display: flex; align-items: center; gap: 5px; font-size: 0.72rem; color: #475569; margin-right: auto; cursor: pointer;">
+          <input type="checkbox" id="batchGeocodeToggle" checked>
+          <span>Look up missing GPS coordinates</span>
+        </label>
         <button type="button" class="btn" onclick="closeBatchImportModal()">Cancel</button>
         <button type="button" class="btn btn-success" id="batchImportBtn" onclick="executeBatchImport()" disabled>Process Import</button>
       </div>
@@ -3165,7 +3200,7 @@
       // Filter state logic
       if (selectedCoachId) {
         // Filter by specific coach
-        keys = keys.filter(id => restaurants[id].assignedAreaCoachId === selectedCoachId);
+        keys = keys.filter(id => storeHasCoach(restaurants[id], selectedCoachId));
         keys = filterAndSortRestaurantKeys(keys);
         countSpan.innerText = keys.length;
         listDiv.innerHTML = "";
@@ -3182,8 +3217,8 @@
         renderRestaurantListPlain(keys, listDiv);
       } else if (selectedDirectorId) {
         // Filter by Director: show group splits: Directreports vs Coachreports
-        let directReportKeys = keys.filter(id => restaurants[id].assignedDirectorId === selectedDirectorId && !restaurants[id].assignedAreaCoachId);
-        let coachReportKeys = keys.filter(id => restaurants[id].assignedDirectorId === selectedDirectorId && restaurants[id].assignedAreaCoachId);
+        let directReportKeys = keys.filter(id => restaurants[id].assignedDirectorId === selectedDirectorId && getCoachIds(restaurants[id]).length === 0);
+        let coachReportKeys = keys.filter(id => restaurants[id].assignedDirectorId === selectedDirectorId && getCoachIds(restaurants[id]).length > 0);
 
         directReportKeys = filterAndSortRestaurantKeys(directReportKeys);
         coachReportKeys = filterAndSortRestaurantKeys(coachReportKeys);
@@ -3218,7 +3253,7 @@
         }
       } else if (selectedTechnicianId) {
         // Filter by specific Repair Technician
-        keys = keys.filter(id => restaurants[id].assignedRepairTechnicianId === selectedTechnicianId);
+        keys = keys.filter(id => storeHasTech(restaurants[id], selectedTechnicianId));
         keys = filterAndSortRestaurantKeys(keys);
         countSpan.innerText = keys.length;
         listDiv.innerHTML = "";
@@ -3249,9 +3284,7 @@
           const lat = (rest.latitude || "").toLowerCase();
           const lng = (rest.longitude || "").toLowerCase();
           
-          const coachName = rest.assignedAreaCoachId && areaCoaches[rest.assignedAreaCoachId] 
-            ? areaCoaches[rest.assignedAreaCoachId].name.toLowerCase() 
-            : "";
+          const coachName = getCoachNames(rest).join(" ").toLowerCase();
           const dirName = rest.assignedDirectorId && directors[rest.assignedDirectorId] 
             ? directors[rest.assignedDirectorId].name.toLowerCase() 
             : "";
@@ -3354,7 +3387,7 @@
       keys.forEach((restId) => {
         const rest = restaurants[restId];
         const isExpanded = expandedRestaurantId === restId;
-        const coachName = rest.assignedAreaCoachId && areaCoaches[rest.assignedAreaCoachId] ? areaCoaches[rest.assignedAreaCoachId].name : null;
+        const coachName = getCoachNames(rest).join(', ') || null;
         const dirName = rest.assignedDirectorId && directors[rest.assignedDirectorId] ? directors[rest.assignedDirectorId].name : null;
 
         const card = document.createElement("div");
@@ -3419,15 +3452,18 @@
               ` : ''}
               <div class="assignment-tags" style="margin-top: 4px;">
                 ${dirName ? `<span class="relation-badge badge-director">Dir: ${escapeHtml(dirName)}</span>` : ''}
-                ${coachName ? `<span class="relation-badge badge-coach">Coach: ${escapeHtml(coachName)}</span>` : '<span class="relation-badge badge-unassigned">Direct Report</span>'}
+                ${getCoachIds(rest).length > 0
+                  ? getCoachIds(rest).map(cid =>
+                      `<span class="relation-badge badge-coach">Coach: ${escapeHtml(areaCoaches[cid].name)}<button onclick="event.stopPropagation(); removeCoachFromStore('${restId}', '${cid}')" title="Remove this coach" style="pointer-events:auto; background:none; border:none; color:inherit; cursor:pointer; font-weight:700; margin-left:4px; padding:0 1px; opacity:0.7;">✕</button></span>`
+                    ).join('')
+                  : '<span class="relation-badge badge-unassigned">Direct Report</span>'}
                 ${rest.assignedEntityId && entities[rest.assignedEntityId] 
                   ? `<span class="relation-badge badge-entity">Ent: ${escapeHtml(entities[rest.assignedEntityId].name)}</span>` 
                   : (rest.entity ? `<span class="relation-badge badge-entity">Ent: ${escapeHtml(rest.entity)}</span>` : '')
                 }
-                ${rest.assignedRepairTechnicianId && repairTechnicians[rest.assignedRepairTechnicianId] 
-                  ? `<span class="relation-badge" style="background-color: #f59e0b; color: #ffffff; border: 1px solid #d97706;">🛠 Tech: ${escapeHtml(repairTechnicians[rest.assignedRepairTechnicianId].name)}</span>` 
-                  : ''
-                }
+                ${getTechIds(rest).map(tid =>
+                  `<span class="relation-badge" style="background-color: #f59e0b; color: #ffffff; border: 1px solid #d97706;">🛠 Tech: ${escapeHtml(repairTechnicians[tid].name)}<button onclick="event.stopPropagation(); removeTechFromStore('${restId}', '${tid}')" title="Remove this tech" style="pointer-events:auto; background:none; border:none; color:inherit; cursor:pointer; font-weight:700; margin-left:4px; padding:0 1px; opacity:0.8;">✕</button></span>`
+                ).join('')}
               </div>
             </div>
           `;
@@ -3547,12 +3583,15 @@
       const elemType = draggedElementData.type;
 
       if (elemType === "restaurant" && coach) {
+        const rest = restaurants[elemId];
+        const current = getCoachIds(rest);
+        if (current.indexOf(targetCoachId) !== -1) return; // already assigned
+        const next = current.concat([targetCoachId]);
+        if (!warnIfDirectorConflict(next)) return;
+        const built = coachAssignmentPayload(next);
         performLockedAction(() => {
           trackChangeTimestamp(elemId);
-          db.ref(`restaurants/${elemId}`).update({
-            assignedAreaCoachId: targetCoachId,
-            assignedDirectorId: coach.assignedDirectorId || ""
-          });
+          db.ref(`restaurants/${elemId}`).update(built.payload);
         });
       }
     }
@@ -3569,11 +3608,13 @@
       const elemType = draggedElementData.type;
 
       if (elemType === "restaurant") {
+        const rest = restaurants[elemId];
+        const current = getTechIds(rest);
+        if (current.indexOf(targetTechnicianId) !== -1) return; // already assigned
+        const next = current.concat([targetTechnicianId]);
         performLockedAction(() => {
           trackChangeTimestamp(elemId);
-          db.ref(`restaurants/${elemId}`).update({
-            assignedRepairTechnicianId: targetTechnicianId
-          });
+          db.ref(`restaurants/${elemId}`).update(techAssignmentPayload(next));
         });
       }
     }
@@ -3627,6 +3668,7 @@
         performLockedAction(() => {
           trackChangeTimestamp(elemId);
           db.ref(`restaurants/${elemId}`).update({
+            assignedAreaCoachIds: [],
             assignedAreaCoachId: "",
             assignedDirectorId: ""
           });
@@ -3644,6 +3686,7 @@
         performLockedAction(() => {
           trackChangeTimestamp(elemId);
           db.ref(`restaurants/${elemId}`).update({
+            assignedRepairTechnicianIds: [],
             assignedRepairTechnicianId: ""
           });
         });
@@ -3851,6 +3894,11 @@
         document.getElementById("modalTitle").innerText = titleText;
         
         setupFormFields(type);
+        if (type === "restaurant") {
+          // Preselect whatever coach is currently filtered, matching the old behaviour.
+          renderCoachCheckList(selectedCoachId ? [selectedCoachId] : []);
+          renderTechCheckList(selectedTechnicianId ? [selectedTechnicianId] : []);
+        }
         document.getElementById("crudModal").classList.add("active");
       });
     }
@@ -3911,7 +3959,8 @@
           document.getElementById("inputLongitude").value = item.longitude || "";
           document.getElementById("inputEmail").value = item.email || "";
           document.getElementById("inputPhone").value = item.phone || "";
-          document.getElementById("selectAssignedCoach").value = item.assignedAreaCoachId || "";
+          renderCoachCheckList(getCoachIds(item));
+          renderTechCheckList(getTechIds(item));
           document.getElementById("selectAssignedDirector").value = item.assignedDirectorId || "";
         }
 
@@ -3936,17 +3985,16 @@
       
       document.getElementById("groupAssignedDirector").style.display = type === "coach" || type === "restaurant" ? "block" : "none";
       document.getElementById("groupAssignedCoach").style.display = type === "restaurant" ? "block" : "none";
+      document.getElementById("groupAssignedTech").style.display = type === "restaurant" ? "block" : "none";
     }
 
     // Dynamic select inputs helpers
     function updateRelationshipDropdowns() {
       const selectDir = document.getElementById("selectAssignedDirector");
-      const selectCoach = document.getElementById("selectAssignedCoach");
       const selectEntity = document.getElementById("selectAssignedEntity");
 
       // Save user selected values temporarily
       const prevDir = selectDir ? selectDir.value : "";
-      const prevCoach = selectCoach ? selectCoach.value : "";
       const prevEntity = selectEntity ? selectEntity.value : "";
 
       if (selectDir) {
@@ -3975,6 +4023,79 @@
       if (selectDir) selectDir.value = prevDir;
       if (selectCoach) selectCoach.value = prevCoach;
       if (selectEntity) selectEntity.value = prevEntity;
+    }
+
+    // ---- multi-select check lists in the edit dialog ----
+
+    function renderCoachCheckList(selectedIds) {
+      const box = document.getElementById("coachCheckList");
+      if (!box) return;
+      const sel = selectedIds || [];
+      const ids = Object.keys(areaCoaches);
+      if (ids.length === 0) {
+        box.innerHTML = `<div style="font-size:0.72rem;color:#94a3b8;font-style:italic;">No area coaches exist yet.</div>`;
+        return;
+      }
+      box.innerHTML = ids.map(id => {
+        const dir = areaCoaches[id].assignedDirectorId && directors[areaCoaches[id].assignedDirectorId]
+          ? ` <span style="color:#94a3b8;">(${escapeHtml(directors[areaCoaches[id].assignedDirectorId].name)})</span>` : "";
+        return `<label style="display:flex;align-items:center;gap:6px;padding:2px 0;font-size:0.76rem;cursor:pointer;">
+          <input type="checkbox" value="${id}" ${sel.indexOf(id) !== -1 ? "checked" : ""} onchange="onCoachCheckChange()">
+          <span>${escapeHtml(areaCoaches[id].name)}${dir}</span>
+        </label>`;
+      }).join("");
+      onCoachCheckChange();
+    }
+
+    function readCoachCheckList() {
+      const box = document.getElementById("coachCheckList");
+      if (!box) return [];
+      return Array.from(box.querySelectorAll("input[type=checkbox]:checked")).map(cb => cb.value);
+    }
+
+    // Keep the director field in step with whatever coaches are ticked.
+    function onCoachCheckChange() {
+      const ids = readCoachCheckList();
+      const hint = document.getElementById("coachDirectorHint");
+      const dirSelect = document.getElementById("selectAssignedDirector");
+      if (ids.length === 0) {
+        if (hint) hint.innerHTML = "";
+        return;
+      }
+      const res = resolveDirectorForCoaches(ids);
+      if (dirSelect && res.directorId) dirSelect.value = res.directorId;
+      if (!hint) return;
+      if (res.conflict) {
+        const names = res.directorIds.map(d => (directors[d] && directors[d].name) || d).join(" / ");
+        hint.innerHTML = `<span style="color:#b45309;font-weight:600;">⚠ These coaches report to different directors (${escapeHtml(names)}). A store should sit under one director.</span>`;
+      } else if (res.directorId && directors[res.directorId]) {
+        hint.innerHTML = `Director set from coach: <strong>${escapeHtml(directors[res.directorId].name)}</strong>`;
+      } else {
+        hint.innerHTML = "";
+      }
+    }
+
+    function renderTechCheckList(selectedIds) {
+      const box = document.getElementById("techCheckList");
+      if (!box) return;
+      const sel = selectedIds || [];
+      const ids = Object.keys(repairTechnicians);
+      if (ids.length === 0) {
+        box.innerHTML = `<div style="font-size:0.72rem;color:#94a3b8;font-style:italic;">No repair technicians exist yet.</div>`;
+        return;
+      }
+      box.innerHTML = ids.map(id =>
+        `<label style="display:flex;align-items:center;gap:6px;padding:2px 0;font-size:0.76rem;cursor:pointer;">
+          <input type="checkbox" value="${id}" ${sel.indexOf(id) !== -1 ? "checked" : ""}>
+          <span>${escapeHtml(repairTechnicians[id].name)}</span>
+        </label>`
+      ).join("");
+    }
+
+    function readTechCheckList() {
+      const box = document.getElementById("techCheckList");
+      if (!box) return [];
+      return Array.from(box.querySelectorAll("input[type=checkbox]:checked")).map(cb => cb.value);
     }
 
     // Cascade director assignment if coach changes in manual edit dialog
@@ -4030,7 +4151,9 @@
           assignedDirectorId: document.getElementById("selectAssignedDirector").value
         };
      } else if (type === "restaurant") {
-        const existingTech = (restaurants[id] && restaurants[id].assignedRepairTechnicianId) ? restaurants[id].assignedRepairTechnicianId : "";
+        const selectedCoachIds = readCoachCheckList();
+        const selectedTechIds = readTechCheckList();
+        if (!warnIfDirectorConflict(selectedCoachIds)) return;
         
         // 1. Safe check for the entity dropdown (in case you add it later)
         const entityDropdown = document.getElementById("selectAssignedEntity");
@@ -4061,9 +4184,11 @@
           longitude: document.getElementById("inputLongitude").value || "",
           email: document.getElementById("inputEmail").value,
           phone: formatPhoneNumber(document.getElementById("inputPhone").value),
-          assignedAreaCoachId: document.getElementById("selectAssignedCoach").value,
+          assignedAreaCoachIds: selectedCoachIds,
+          assignedAreaCoachId: selectedCoachIds[0] || "",
           assignedDirectorId: document.getElementById("selectAssignedDirector").value,
-          assignedRepairTechnicianId: existingTech
+          assignedRepairTechnicianIds: selectedTechIds,
+          assignedRepairTechnicianId: selectedTechIds[0] || ""
         };
       }
 
@@ -4096,11 +4221,35 @@
             if (type === 'technician' && selectedTechnicianId === id) selectedTechnicianId = null;
             if (type === 'entity' && selectedEntityId === id) selectedEntityId = null;
 
-            // Cleanup references in restaurants
+            // Cleanup references in restaurants.
+            // NOTE: this runs *after* the node is removed, so getCoachIds/
+            // getTechIds would already filter the dead id out. Read raw here.
+            const rawIds = (rest, arrKey, singleKey) => {
+              let ids = [];
+              if (Array.isArray(rest[arrKey])) ids = rest[arrKey].slice();
+              else if (rest[arrKey] && typeof rest[arrKey] === "object") ids = Object.values(rest[arrKey]);
+              else if (rest[singleKey]) ids = [rest[singleKey]];
+              return ids.filter(Boolean);
+            };
+
             if (type === 'technician') {
               Object.keys(restaurants).forEach(restId => {
-                if (restaurants[restId].assignedRepairTechnicianId === id) {
-                  db.ref(`restaurants/${restId}/assignedRepairTechnicianId`).remove();
+                const ids = rawIds(restaurants[restId], "assignedRepairTechnicianIds", "assignedRepairTechnicianId");
+                if (ids.indexOf(id) !== -1) {
+                  db.ref(`restaurants/${restId}`).update(
+                    techAssignmentPayload(ids.filter(t => t !== id))
+                  );
+                }
+              });
+            } else if (type === 'coach') {
+              // Previously orphaned ids were left behind here.
+              Object.keys(restaurants).forEach(restId => {
+                const ids = rawIds(restaurants[restId], "assignedAreaCoachIds", "assignedAreaCoachId");
+                if (ids.indexOf(id) !== -1) {
+                  const next = ids.filter(c => c !== id);
+                  db.ref(`restaurants/${restId}`).update(
+                    coachAssignmentPayload(next).payload
+                  );
                 }
               });
             } else if (type === 'entity') {
@@ -4127,6 +4276,14 @@
       document.getElementById("batchCountBadge").innerText = "0 rows";
       document.getElementById("batchPreviewRows").innerHTML = `<p style="text-align: center; font-style: italic; color: #94a3b8; padding: 15px 0;">No raw store data pasted yet.</p>`;
       document.getElementById("batchImportBtn").disabled = true;
+
+      // Reset diff-preview state from any previous run.
+      batchRows = [];
+      document.getElementById("batchNewBadge").innerText = "0 new";
+      document.getElementById("batchUpdBadge").innerText = "0 changed";
+      document.getElementById("batchLegend").style.display = "none";
+      document.getElementById("batchGeoWrap").style.display = "none";
+      document.getElementById("batchImportBtn").innerText = "Process Import";
 
       // Populate batch assign fields
       const batchDir = document.getElementById("batchDefaultDirector");
@@ -4239,12 +4396,15 @@
             entity: -1,
             storeNumber: -1,
             latitude: -1,
-            longitude: -1
+            longitude: -1,
+            areaCoach: -1
           };
           
           columns.forEach((col, colIdx) => {
             const val = col.toLowerCase();
-            if (val.includes('store name') || val.includes('storename') || val === 'store') {
+            if (val.includes('area coach') || val.includes('areacoach') || val === 'coach' || val === 'ac') {
+              headerIndices.areaCoach = colIdx;
+            } else if (val.includes('store name') || val.includes('storename') || val === 'store') {
               headerIndices.storeName = colIdx;
             } else if (val.includes('manager') || val.includes('store manager')) {
               headerIndices.storeManager = colIdx;
@@ -4283,6 +4443,7 @@
         let storeNumber = '';
         let latitude = '';
         let longitude = '';
+        let areaCoachName = '';
         
         if (headerIndices) {
           if (headerIndices.storeName !== -1) rawStoreName = columns[headerIndices.storeName] || '';
@@ -4296,6 +4457,7 @@
           if (headerIndices.storeNumber !== -1) storeNumber = columns[headerIndices.storeNumber] || '';
           if (headerIndices.latitude !== -1) latitude = columns[headerIndices.latitude] || '';
           if (headerIndices.longitude !== -1) longitude = columns[headerIndices.longitude] || '';
+          if (headerIndices.areaCoach !== -1) areaCoachName = columns[headerIndices.areaCoach] || '';
         } else {
           // Auto-detect format structure (Old vs New vs GPS 10-col vs GPS 7-col format)
           let is10ColGpsFormat = false;
@@ -4443,6 +4605,7 @@
           address: combinedAddress,
           phone: formatPhoneNumber(phone),
           entity: entity,
+          areaCoachName: (areaCoachName || "").trim(),
           latitude: latitude || "",
           longitude: longitude || "",
           assignedAreaCoachId: "",
@@ -4453,114 +4616,459 @@
       return results;
     }
 
+    // ------------------------------------------------------------------
+    // BATCH IMPORT: diff preview + inline editing + geocoding
+    // ------------------------------------------------------------------
+
+    // Fields we diff/edit, in display order.
+    const BATCH_FIELDS = [
+      { key: "storeName",    label: "Name"   },
+      { key: "entity",       label: "Entity" },
+      { key: "address",      label: "Address"},
+      { key: "phone",        label: "Phone"  },
+      { key: "storeManager", label: "Mgr"    },
+      { key: "latitude",     label: "Lat"    },
+      { key: "longitude",    label: "Lng"    }
+    ];
+
+    // Working set for the preview. Each entry:
+    // { data, matchedId, isNew, coachId, coachName, coachMatch, skip, overwrite:{field:bool}, geo }
+    let batchRows = [];
+
+    function batchNorm(v) {
+      return (v === undefined || v === null) ? "" : String(v).trim();
+    }
+
+    // "Macy Eason / Denson French" means BOTH are coaches for that store.
+    // Split on separators and resolve each name independently.
+    // Returns {ids:[], resolved:[{raw,id,name,status}], unmatched:[names]}
+    function matchCoachesByName(rawName) {
+      const name = batchNorm(rawName);
+      if (!name) return { ids: [], resolved: [], unmatched: [] };
+
+      const parts = name.split(/\s*[\/;,|]\s*|\s+&\s+|\s+and\s+/i)
+        .map(p => p.trim())
+        .filter(Boolean);
+
+      const resolved = parts.map(p => {
+        const m = matchCoachByName(p);
+        return { raw: p, id: m.id, name: m.name || p, status: m.status };
+      });
+
+      const ids = resolved.map(r => r.id).filter(Boolean);
+      return {
+        ids: ids.filter((id, i) => ids.indexOf(id) === i),
+        resolved,
+        unmatched: resolved.filter(r => !r.id).map(r => r.raw)
+      };
+    }
+
+    // Loose name matching so "Heather Williams" finds coach "heather williams".
+    // Returns {id, name, status} where status is exact|fuzzy|multi|none|empty.
+    function matchCoachByName(rawName) {
+      const name = batchNorm(rawName);
+      if (!name) return { id: "", name: "", status: "empty" };
+
+      const target = name.toLowerCase();
+
+      const coaches = Object.values(areaCoaches || {});
+      let exact = coaches.filter(c => batchNorm(c.name).toLowerCase() === target);
+      if (exact.length === 1) return { id: exact[0].id, name: exact[0].name, status: "exact" };
+      if (exact.length > 1)  return { id: "", name: name, status: "multi" };
+
+      // Fall back to last-name / substring containment.
+      const partial = coaches.filter(c => {
+        const cn = batchNorm(c.name).toLowerCase();
+        return cn && (cn.includes(target) || target.includes(cn));
+      });
+      if (partial.length === 1) return { id: partial[0].id, name: partial[0].name, status: "fuzzy" };
+      if (partial.length > 1)   return { id: "", name: name, status: "multi" };
+
+      return { id: "", name: name, status: "none" };
+    }
+
+    // Build batchRows from pasted text, diffing against existing restaurants.
     function previewBatchInput() {
       const text = document.getElementById("batchTextArea").value;
       const parsed = parseBatchInput(text);
       currentParsedStores = parsed;
 
-      const previewDiv = document.getElementById("batchPreviewRows");
-      const badge = document.getElementById("batchCountBadge");
-      const importBtn = document.getElementById("batchImportBtn");
+      const existingList = Object.values(restaurants || {});
 
-      badge.innerText = `${parsed.length} rows`;
+      batchRows = parsed.map(store => {
+        const matched = existingList.find(r => doStoreNumbersMatch(r.storeNumber, store.storeNumber));
+        const coach = matchCoachesByName(store.areaCoachName);
 
-      if (parsed.length === 0) {
-        previewDiv.innerHTML = `<p style="text-align: center; font-style: italic; color: #94a3b8; padding: 15px 0;">No raw store data pasted yet.</p>`;
-        importBtn.disabled = true;
-      } else {
-        importBtn.disabled = false;
-        let htmlList = `<div style="display: flex; flex-direction: column; gap: 8px;">`;
-        parsed.forEach((store) => {
-          htmlList += `
-            <div style="border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; margin-bottom: 4px;">
-              <span style="font-weight: 600; color: #0f172a;">[${store.storeNumber}] ${escapeHtml(store.storeName)}</span>
-              <div style="font-size: 0.72rem; color: #64748b; margin-top: 2px; display: flex; flex-wrap: wrap; gap: 8px;">
-                ${store.entity ? `<span>🏢 Entity: ${escapeHtml(store.entity)}</span>` : ''}
-                <span>👤 Mgr: ${escapeHtml(store.storeManager || 'N/A')}</span>
-                <span>📍 ${escapeHtml(store.address)}</span>
-                <span>☎ ${store.phone}</span>
-                ${store.latitude || store.longitude ? `<span>🌐 GPS: ${escapeHtml(store.latitude || '')}, ${escapeHtml(store.longitude || '')}</span>` : ''}
-              </div>
-            </div>
-          `;
-        });
-        htmlList += `</div>`;
-        previewDiv.innerHTML = htmlList;
-      }
+        // Default every detected overwrite to CHECKED (user asked for this),
+        // shown in red so nothing changes silently.
+        const overwrite = {};
+        if (matched) {
+          BATCH_FIELDS.forEach(f => {
+            const incoming = batchNorm(store[f.key]);
+            const current  = batchNorm(matched[f.key]);
+            if (incoming && current && incoming !== current) overwrite[f.key] = true;
+          });
+        }
+
+        return {
+          data: { ...store },
+          matchedId: matched ? matched.id : null,
+          existing: matched || null,
+          isNew: !matched,
+          coachIds: coach.ids,
+          coachUnmatched: coach.unmatched,
+          coachRaw: batchNorm(store.areaCoachName),
+          skip: false,
+          overwrite,
+          geo: (batchNorm(store.latitude) && batchNorm(store.longitude)) ? "have" : "pending"
+        };
+      });
+
+      renderBatchPreview();
     }
 
-    function executeBatchImport() {
-      if (currentParsedStores.length === 0) {
-        alert("Pasted data could not be parsed successfully.");
+    // Classify one field for display: new | overwrite | fill | same
+    function batchFieldState(row, key) {
+      const incoming = batchNorm(row.data[key]);
+      if (row.isNew) return incoming ? "new" : "same";
+      const current = batchNorm(row.existing ? row.existing[key] : "");
+      if (!incoming) return "same";                 // nothing to write
+      if (!current)  return "fill";                 // filling a blank - additive
+      if (incoming === current) return "same";
+      return "overwrite";
+    }
+
+    function renderBatchPreview() {
+      const previewDiv = document.getElementById("batchPreviewRows");
+      const badge      = document.getElementById("batchCountBadge");
+      const newBadge   = document.getElementById("batchNewBadge");
+      const updBadge   = document.getElementById("batchUpdBadge");
+      const importBtn  = document.getElementById("batchImportBtn");
+      const legend     = document.getElementById("batchLegend");
+
+      const active = batchRows.filter(r => !r.skip);
+      badge.innerText = `${batchRows.length} rows`;
+
+      if (batchRows.length === 0) {
+        previewDiv.innerHTML = `<p style="text-align: center; font-style: italic; color: #94a3b8; padding: 15px 0;">No raw store data pasted yet.</p>`;
+        importBtn.disabled = true;
+        legend.style.display = "none";
+        newBadge.innerText = "0 new";
+        updBadge.innerText = "0 changed";
         return;
       }
 
-      const defaultDirId = document.getElementById("batchDefaultDirector").value;
-      const defaultCoachId = document.getElementById("batchDefaultCoach").value;
+      legend.style.display = "flex";
+      importBtn.disabled = active.length === 0;
 
+      const newCount = active.filter(r => r.isNew).length;
+      const changedCount = active.filter(r => !r.isNew &&
+        BATCH_FIELDS.some(f => batchFieldState(r, f.key) === "overwrite" && r.overwrite[f.key])).length;
+      newBadge.innerText = `${newCount} new`;
+      updBadge.innerText = `${changedCount} changed`;
+
+      let html = `<div style="display: flex; flex-direction: column; gap: 6px;">`;
+
+      batchRows.forEach((row, idx) => {
+        const stripe = row.skip ? "#cbd5e1" : (row.isNew ? "#22c55e" : "#ef4444");
+        const tag = row.isNew
+          ? `<span style="background:#dcfce7;color:#166534;padding:1px 6px;border-radius:8px;font-size:0.62rem;font-weight:700;">NEW</span>`
+          : `<span style="background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:8px;font-size:0.62rem;font-weight:700;">EXISTING</span>`;
+
+        html += `
+          <div style="border:1px solid #e2e8f0;border-left:4px solid ${stripe};border-radius:5px;padding:7px 9px;background:${row.skip ? '#f8fafc' : '#fff'};opacity:${row.skip ? 0.5 : 1};">
+            <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;flex-wrap:wrap;">
+              <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+                <input type="checkbox" ${row.skip ? "" : "checked"} onchange="batchToggleSkip(${idx}, this.checked)">
+                <span style="font-weight:700;color:#0f172a;font-size:0.76rem;">${escapeHtml(row.data.storeNumber || '#')}</span>
+              </label>
+              ${tag}
+              ${batchGeoBadge(row)}
+              <span style="margin-left:auto;">${batchCoachSelect(row, idx)}</span>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:4px;">
+              ${BATCH_FIELDS.map(f => batchFieldCell(row, idx, f)).join("")}
+            </div>
+          </div>`;
+      });
+
+      html += `</div>`;
+      previewDiv.innerHTML = html;
+    }
+
+    function batchGeoBadge(row) {
+      if (row.geo === "have")    return `<span title="Coordinates present" style="font-size:0.62rem;color:#166534;">🌐 GPS</span>`;
+      if (row.geo === "found")   return `<span title="Coordinates looked up" style="font-size:0.62rem;color:#166534;">🌐 found</span>`;
+      if (row.geo === "failed")  return `<span title="Lookup failed - store will not show on the map" style="font-size:0.62rem;color:#b45309;">⚠ no GPS</span>`;
+      if (row.geo === "looking") return `<span style="font-size:0.62rem;color:#64748b;">⏳ …</span>`;
+      return `<span title="Will look up on import" style="font-size:0.62rem;color:#94a3b8;">🌐 pending</span>`;
+    }
+
+    function batchCoachSelect(row, idx) {
+      const chips = row.coachIds.map(cid =>
+        `<span style="display:inline-flex;align-items:center;gap:2px;background:#e0e7ff;color:#3730a3;border-radius:8px;padding:0 4px;font-size:0.6rem;font-weight:600;">
+          ${escapeHtml(areaCoaches[cid] ? areaCoaches[cid].name : cid)}
+          <button onclick="batchRemoveCoach(${idx}, '${cid}')" title="Remove" style="background:none;border:none;color:inherit;cursor:pointer;font-weight:700;padding:0;">✕</button>
+        </span>`
+      ).join(" ");
+
+      let opts = `<option value="">+ add coach…</option>`;
+      Object.values(areaCoaches || {}).forEach(c => {
+        if (row.coachIds.indexOf(c.id) === -1) {
+          opts += `<option value="${c.id}">${escapeHtml(c.name)}</option>`;
+        }
+      });
+
+      const warn = (row.coachUnmatched && row.coachUnmatched.length)
+        ? `<span title="No coach found with th${row.coachUnmatched.length === 1 ? 'is name' : 'ese names'} - pick from the list or add the coach first" style="color:#b45309;font-size:0.6rem;">⚠ ${escapeHtml(row.coachUnmatched.join(", "))} not found</span>`
+        : "";
+
+      return `<span style="display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;justify-content:flex-end;">
+        ${chips}${warn}
+        <select onchange="batchAddCoach(${idx}, this.value); this.value='';" style="font-size:0.62rem;padding:1px 2px;border:1px solid #cbd5e1;border-radius:3px;max-width:110px;">${opts}</select>
+      </span>`;
+    }
+
+    function batchFieldCell(row, idx, field) {
+      const state = batchFieldState(row, field.key);
+      const val = batchNorm(row.data[field.key]);
+      const oldVal = batchNorm(row.existing ? row.existing[field.key] : "");
+
+      let border = "#e2e8f0", bg = "#fff", labelColor = "#94a3b8";
+      if (state === "new")       { border = "#86efac"; bg = "#f0fdf4"; labelColor = "#166534"; }
+      if (state === "fill")      { border = "#86efac"; bg = "#f0fdf4"; labelColor = "#166534"; }
+      if (state === "overwrite") { border = "#fca5a5"; bg = "#fef2f2"; labelColor = "#991b1b"; }
+
+      // Only true overwrites get an opt-out checkbox.
+      const applyBox = (state === "overwrite")
+        ? `<input type="checkbox" ${row.overwrite[field.key] ? "checked" : ""} onchange="batchToggleField(${idx}, '${field.key}', this.checked)" title="Uncheck to keep the existing value" style="margin-left:auto;">`
+        : "";
+
+      const wasLine = (state === "overwrite")
+        ? `<div style="font-size:0.6rem;color:#b91c1c;text-decoration:line-through;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(oldVal)}">was: ${escapeHtml(oldVal)}</div>`
+        : "";
+
+      return `
+        <div style="border:1px solid ${border};background:${bg};border-radius:4px;padding:3px 5px;">
+          <div style="display:flex;align-items:center;gap:4px;">
+            <span style="font-size:0.58rem;font-weight:700;color:${labelColor};text-transform:uppercase;">${field.label}</span>
+            ${applyBox}
+          </div>
+          <input type="text" value="${escapeHtml(val)}"
+                 oninput="batchEditField(${idx}, '${field.key}', this.value)"
+                 style="width:100%;border:none;background:transparent;font-size:0.7rem;color:#0f172a;padding:1px 0;outline:none;">
+          ${wasLine}
+        </div>`;
+    }
+
+    function batchToggleSkip(idx, include) {
+      batchRows[idx].skip = !include;
+      renderBatchPreview();
+    }
+
+    function batchToggleField(idx, key, apply) {
+      batchRows[idx].overwrite[key] = apply;
+      renderBatchPreview();
+    }
+
+    function batchAddCoach(idx, coachId) {
+      if (!coachId) return;
+      const row = batchRows[idx];
+      if (row.coachIds.indexOf(coachId) === -1) row.coachIds.push(coachId);
+      // A manual pick resolves the warning for that name.
+      row.coachUnmatched = (row.coachUnmatched || []).filter(n => {
+        const m = matchCoachByName(n);
+        return m.id !== coachId;
+      });
+      renderBatchPreview();
+    }
+
+    function batchRemoveCoach(idx, coachId) {
+      const row = batchRows[idx];
+      row.coachIds = row.coachIds.filter(id => id !== coachId);
+      renderBatchPreview();
+    }
+
+    // Edit without a full re-render, so focus/caret stay put while typing.
+    function batchEditField(idx, key, value) {
+      const row = batchRows[idx];
+      row.data[key] = value;
+
+      // Editing an address invalidates any previously-resolved coordinates.
+      if (key === "address" && row.geo === "found") {
+        row.data.latitude = "";
+        row.data.longitude = "";
+        row.geo = "pending";
+      }
+      if ((key === "latitude" || key === "longitude")) {
+        row.geo = (batchNorm(row.data.latitude) && batchNorm(row.data.longitude)) ? "have" : "pending";
+      }
+    }
+
+    // ---------------- geocoding ----------------
+
+    function batchSetGeoProgress(done, total, label) {
+      const wrap = document.getElementById("batchGeoWrap");
+      const bar  = document.getElementById("batchGeoBar");
+      const cnt  = document.getElementById("batchGeoCount");
+      const lab  = document.getElementById("batchGeoLabel");
+      if (!wrap) return;
+      wrap.style.display = total > 0 ? "block" : "none";
+      bar.style.width = total > 0 ? `${Math.round((done / total) * 100)}%` : "0%";
+      cnt.innerText = `${done} / ${total}`;
+      if (label) lab.innerText = label;
+    }
+
+    // Nominatim asks for <=1 request/sec. Honor that or they rate-limit us.
+    function batchSleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+    }
+
+    async function geocodeAddress(address) {
+      const url = "https://nominatim.openstreetmap.org/search?format=json&limit=1&countrycodes=us&q="
+                + encodeURIComponent(address);
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 12000);
+      try {
+        const resp = await fetch(url, { signal: controller.signal, headers: { "Accept": "application/json" } });
+        clearTimeout(timer);
+        if (!resp.ok) return null;
+        const data = await resp.json();
+        if (Array.isArray(data) && data.length > 0 && data[0].lat && data[0].lon) {
+          return { lat: String(data[0].lat), lng: String(data[0].lon) };
+        }
+        return null;
+      } catch (e) {
+        clearTimeout(timer);
+        return null;
+      }
+    }
+
+    // Resolve coordinates for rows that lack them. Never throws - a failed
+    // lookup just leaves the row without GPS.
+    async function batchGeocodeMissing(rows) {
+      const need = rows.filter(r => !r.skip
+        && batchNorm(r.data.address)
+        && !(batchNorm(r.data.latitude) && batchNorm(r.data.longitude)));
+
+      if (need.length === 0) return;
+
+      batchSetGeoProgress(0, need.length, "Looking up coordinates…");
+      let done = 0;
+
+      for (const row of need) {
+        row.geo = "looking";
+        renderBatchPreview();
+        const hit = await geocodeAddress(row.data.address);
+        if (hit) {
+          row.data.latitude = hit.lat;
+          row.data.longitude = hit.lng;
+          row.geo = "found";
+        } else {
+          row.geo = "failed";
+        }
+        done++;
+        batchSetGeoProgress(done, need.length, "Looking up coordinates…");
+        renderBatchPreview();
+        if (done < need.length) await batchSleep(1100);
+      }
+
+      const failed = need.filter(r => r.geo === "failed").length;
+      batchSetGeoProgress(done, need.length,
+        failed ? `Done - ${failed} address${failed === 1 ? "" : "es"} could not be located` : "Coordinates resolved");
+    }
+
+    // ---------------- commit ----------------
+
+    async function executeBatchImport() {
+      const rows = batchRows.filter(r => !r.skip);
+      if (rows.length === 0) {
+        alert("Nothing to import - every row is unchecked.");
+        return;
+      }
+
+      const importBtn = document.getElementById("batchImportBtn");
+      importBtn.disabled = true;
+
+      // Geocode first so the preview reflects exactly what gets written.
+      if (document.getElementById("batchGeocodeToggle").checked) {
+        importBtn.innerText = "Looking up GPS…";
+        try {
+          await batchGeocodeMissing(rows);
+        } catch (e) {
+          console.error("Geocoding failed:", e);
+        }
+      }
+
+      importBtn.innerText = "Saving…";
+
+      const defaultDirId   = document.getElementById("batchDefaultDirector").value;
+      const defaultCoachId = document.getElementById("batchDefaultCoach").value;
       const updates = {};
       const rootRef = db.ref("restaurants");
-      const existingStoresList = Object.values(restaurants);
 
-      currentParsedStores.forEach((store) => {
-        // Find existing match by smart leading-zeros-agnostic comparison
-        const matched = existingStoresList.find(r => 
-          doStoreNumbersMatch(r.storeNumber, store.storeNumber)
-        );
+      rows.forEach(row => {
+        const store = row.data;
+        let targetId, finalStoreObj;
 
-        let targetId;
-        let finalStoreObj;
-        if (matched) {
-          // UPDATE (UPSERT / MERGE)
-          targetId = matched.id;
-          
-          // Construct a robust merged object so we don't overwrite populated fields with empty imported ones
-          finalStoreObj = { ...matched };
-          
-          if (store.storeNumber && store.storeNumber !== '#') {
-            finalStoreObj.storeNumber = store.storeNumber;
+        if (row.matchedId) {
+          targetId = row.matchedId;
+          finalStoreObj = { ...row.existing };
+
+          BATCH_FIELDS.concat([{ key: "storeNumber" }]).forEach(f => {
+            const key = f.key;
+            const incoming = batchNorm(store[key]);
+            if (!incoming) return;                                  // never blank a field
+            if (key === "storeName" && incoming === "Unknown Restaurant") return;
+            if (key === "storeNumber" && incoming === "#") return;
+
+            const state = batchFieldState(row, key);
+            // Respect an unchecked overwrite: keep what's already there.
+            if (state === "overwrite" && !row.overwrite[key]) return;
+            finalStoreObj[key] = store[key];
+          });
+
+          // Row-level coaches win; then the modal default; then what was there.
+          let coachIds = row.coachIds.slice();
+          if (coachIds.length === 0 && defaultCoachId) coachIds = [defaultCoachId];
+          if (coachIds.length === 0) coachIds = getCoachIds(row.existing);
+          const built = coachAssignmentPayload(coachIds);
+          Object.assign(finalStoreObj, built.payload);
+          if (!built.payload.assignedDirectorId) {
+            finalStoreObj.assignedDirectorId = defaultDirId || row.existing.assignedDirectorId || "";
           }
-          if (store.storeName && store.storeName !== 'Unknown Restaurant') {
-            finalStoreObj.storeName = store.storeName;
-          }
-          if (store.storeManager && store.storeManager.trim()) {
-            finalStoreObj.storeManager = store.storeManager;
-          }
-          if (store.address && store.address.trim() && store.address !== 'No address') {
-            finalStoreObj.address = store.address;
-          }
-          if (store.phone && store.phone.trim()) {
-            finalStoreObj.phone = store.phone;
-          }
-          if (store.entity && store.entity.trim()) {
-            finalStoreObj.entity = store.entity;
-          }
-          if (store.latitude && store.latitude.trim()) {
-            finalStoreObj.latitude = store.latitude;
-          }
-          if (store.longitude && store.longitude.trim()) {
-            finalStoreObj.longitude = store.longitude;
-          }
-          
-          finalStoreObj.assignedDirectorId = defaultDirId || matched.assignedDirectorId || "";
-          finalStoreObj.assignedAreaCoachId = defaultCoachId || matched.assignedAreaCoachId || "";
         } else {
-          // CREATE
           targetId = rootRef.push().key;
-          store.id = targetId;
-          store.assignedDirectorId = defaultDirId || "";
-          store.assignedAreaCoachId = defaultCoachId || "";
-          finalStoreObj = store;
+          finalStoreObj = { ...store };
+          delete finalStoreObj.areaCoachName;
+          finalStoreObj.id = targetId;
+
+          let coachIds = row.coachIds.slice();
+          if (coachIds.length === 0 && defaultCoachId) coachIds = [defaultCoachId];
+          const built = coachAssignmentPayload(coachIds);
+          Object.assign(finalStoreObj, built.payload);
+          if (!built.payload.assignedDirectorId) {
+            finalStoreObj.assignedDirectorId = defaultDirId || "";
+          }
         }
 
+        delete finalStoreObj.areaCoachName;
         updates[`restaurants/${targetId}`] = finalStoreObj;
       });
 
+      const newCount = rows.filter(r => r.isNew).length;
+      const updCount = rows.length - newCount;
+      const noGeo    = rows.filter(r => !batchNorm(r.data.latitude) || !batchNorm(r.data.longitude)).length;
+
       db.ref().update(updates, (err) => {
+        importBtn.disabled = false;
+        importBtn.innerText = "Process Import";
         if (err) {
           alert("Error importing records: " + err.message);
         } else {
-          alert(`Successfully upserted ${currentParsedStores.length} stores based on their store numbers!`);
+          let msg = `Imported ${rows.length} stores - ${newCount} added, ${updCount} updated.`;
+          if (noGeo > 0) msg += `\n\n${noGeo} store${noGeo === 1 ? "" : "s"} still ha${noGeo === 1 ? "s" : "ve"} no coordinates and will not appear on the map. You can add them by editing the store.`;
+          alert(msg);
           closeBatchImportModal();
         }
       });
@@ -4609,6 +5117,137 @@
     // ==========================================
     // 10. STRING & CHARACTER UTILITIES
     // ==========================================
+    // ==========================================
+    // MULTI-ASSIGNMENT HELPERS (coaches + techs)
+    // ------------------------------------------
+    // A store may have several area coaches and several repair techs.
+    // Canonical storage is an array: assignedAreaCoachIds / assignedRepairTechnicianIds.
+    // The legacy single-value fields (assignedAreaCoachId /
+    // assignedRepairTechnicianId) are still read so existing records keep
+    // working, and are still written alongside the array so that anything
+    // not yet migrated (or an older cached tab) keeps functioning.
+    // ==========================================
+
+    // Read coach ids off a store, tolerating legacy single-value data.
+    function getCoachIds(rest) {
+      if (!rest) return [];
+      let ids = [];
+      if (Array.isArray(rest.assignedAreaCoachIds)) {
+        ids = rest.assignedAreaCoachIds.slice();
+      } else if (rest.assignedAreaCoachIds && typeof rest.assignedAreaCoachIds === "object") {
+        // Firebase can hand back an object keyed by index.
+        ids = Object.values(rest.assignedAreaCoachIds);
+      } else if (rest.assignedAreaCoachId) {
+        ids = [rest.assignedAreaCoachId];
+      }
+      // Drop blanks, dupes, and ids whose coach no longer exists.
+      return ids.filter((id, i) => id && ids.indexOf(id) === i && areaCoaches[id]);
+    }
+
+    function getTechIds(rest) {
+      if (!rest) return [];
+      let ids = [];
+      if (Array.isArray(rest.assignedRepairTechnicianIds)) {
+        ids = rest.assignedRepairTechnicianIds.slice();
+      } else if (rest.assignedRepairTechnicianIds && typeof rest.assignedRepairTechnicianIds === "object") {
+        ids = Object.values(rest.assignedRepairTechnicianIds);
+      } else if (rest.assignedRepairTechnicianId) {
+        ids = [rest.assignedRepairTechnicianId];
+      }
+      return ids.filter((id, i) => id && ids.indexOf(id) === i && repairTechnicians[id]);
+    }
+
+    function getCoachNames(rest) {
+      return getCoachIds(rest).map(id => areaCoaches[id].name);
+    }
+
+    function getTechNames(rest) {
+      return getTechIds(rest).map(id => repairTechnicians[id].name);
+    }
+
+    function storeHasCoach(rest, coachId) {
+      return getCoachIds(rest).indexOf(coachId) !== -1;
+    }
+
+    function storeHasTech(rest, techId) {
+      return getTechIds(rest).indexOf(techId) !== -1;
+    }
+
+    // Every coach on a store is expected to report to the same director.
+    // Returns {directorId, conflict} - conflict flags a violation rather than
+    // silently picking one.
+    function resolveDirectorForCoaches(coachIds) {
+      const dirIds = coachIds
+        .map(id => (areaCoaches[id] && areaCoaches[id].assignedDirectorId) || "")
+        .filter(Boolean);
+      const unique = dirIds.filter((d, i) => dirIds.indexOf(d) === i);
+      return {
+        directorId: unique.length > 0 ? unique[0] : "",
+        conflict: unique.length > 1,
+        directorIds: unique
+      };
+    }
+
+    // Build the write payload for a coach-id list, keeping legacy fields in sync.
+    function coachAssignmentPayload(coachIds) {
+      const clean = coachIds.filter((id, i) => id && coachIds.indexOf(id) === i);
+      const res = resolveDirectorForCoaches(clean);
+      return {
+        payload: {
+          assignedAreaCoachIds: clean,
+          assignedAreaCoachId: clean[0] || "",   // legacy mirror
+          assignedDirectorId: res.directorId
+        },
+        conflict: res.conflict,
+        directorIds: res.directorIds
+      };
+    }
+
+    function techAssignmentPayload(techIds) {
+      const clean = techIds.filter((id, i) => id && techIds.indexOf(id) === i);
+      return {
+        assignedRepairTechnicianIds: clean,
+        assignedRepairTechnicianId: clean[0] || ""  // legacy mirror
+      };
+    }
+
+    // Warn when an assignment would put two directors on one store.
+    function warnIfDirectorConflict(coachIds) {
+      const res = resolveDirectorForCoaches(coachIds);
+      if (!res.conflict) return true;
+      const names = res.directorIds
+        .map(d => (directors[d] && directors[d].name) || d)
+        .join(" and ");
+      return confirm(
+        "Heads up: these area coaches report to different directors (" + names + ").\n\n" +
+        "A store is expected to sit under a single director. Assigning them both will file " +
+        "this store under " + ((directors[res.directorIds[0]] && directors[res.directorIds[0]].name) || "the first director") + ".\n\n" +
+        "Continue anyway?"
+      );
+    }
+
+    // Remove a single coach/tech from a store (the ✕ on each badge).
+    function removeCoachFromStore(restId, coachId) {
+      const rest = restaurants[restId];
+      if (!rest) return;
+      const next = getCoachIds(rest).filter(id => id !== coachId);
+      const built = coachAssignmentPayload(next);
+      performLockedAction(() => {
+        trackChangeTimestamp(restId);
+        db.ref(`restaurants/${restId}`).update(built.payload);
+      });
+    }
+
+    function removeTechFromStore(restId, techId) {
+      const rest = restaurants[restId];
+      if (!rest) return;
+      const next = getTechIds(rest).filter(id => id !== techId);
+      performLockedAction(() => {
+        trackChangeTimestamp(restId);
+        db.ref(`restaurants/${restId}`).update(techAssignmentPayload(next));
+      });
+    }
+
     function escapeHtml(str) {
       if (!str) return '';
       return String(str)
@@ -4738,15 +5377,15 @@
         const initial = initialRestaurants[id];
 
         if (!initial) {
-          const coachName = rest.assignedAreaCoachId && areaCoaches[rest.assignedAreaCoachId] ? areaCoaches[rest.assignedAreaCoachId].name : 'Direct Report';
+          const coachName = getCoachNames(rest).join(', ') || 'Direct Report';
           const dirName = rest.assignedDirectorId && directors[rest.assignedDirectorId] ? directors[rest.assignedDirectorId].name : 'No Director';
           logs.push({
             id: id,
             text: `Restaurant [${rest.storeNumber || '#'}] "${rest.storeName}": Added/Imported (Coach: "${coachName}", Director: "${dirName}")`
           });
-        } else if (rest.assignedAreaCoachId !== initial.assignedAreaCoachId || rest.assignedDirectorId !== initial.assignedDirectorId) {
-          const currentCoachName = rest.assignedAreaCoachId && areaCoaches[rest.assignedAreaCoachId] ? areaCoaches[rest.assignedAreaCoachId].name : 'Direct Report';
-          const initialCoachName = initial.assignedAreaCoachId && areaCoaches[initial.assignedAreaCoachId] ? areaCoaches[initial.assignedAreaCoachId].name : 'Direct Report';
+        } else if (getCoachIds(rest).join(',') !== getCoachIds(initial).join(',') || rest.assignedDirectorId !== initial.assignedDirectorId) {
+          const currentCoachName = getCoachNames(rest).join(', ') || 'Direct Report';
+          const initialCoachName = getCoachNames(initial).join(', ') || 'Direct Report';
           
           const currentDirName = rest.assignedDirectorId && directors[rest.assignedDirectorId] ? directors[rest.assignedDirectorId].name : 'No Director';
           const initialDirName = initial.assignedDirectorId && directors[initial.assignedDirectorId] ? directors[initial.assignedDirectorId].name : 'No Director';
@@ -4874,9 +5513,15 @@
         return { key: "brand:" + b.key, label: b.label };
       }
       if (__mapColorBy === "coach") {
-        if (rest.assignedAreaCoachId && areaCoaches[rest.assignedAreaCoachId])
-          return { key: "coach:" + rest.assignedAreaCoachId, label: areaCoaches[rest.assignedAreaCoachId].name };
-        return null;
+        const ids = getCoachIds(rest);
+        if (ids.length === 0) return null;
+        // Colour by whichever coach is currently filtered/selected, so a
+        // shared store lights up under the coach you're looking at.
+        const pick = (selectedCoachId && ids.indexOf(selectedCoachId) !== -1)
+          ? selectedCoachId
+          : ids[0];
+        const extra = ids.length > 1 ? ` +${ids.length - 1}` : "";
+        return { key: "coach:" + pick, label: areaCoaches[pick].name + extra };
       }
       if (__mapColorBy === "director") {
         if (rest.assignedDirectorId && directors[rest.assignedDirectorId])
@@ -4884,9 +5529,13 @@
         return null;
       }
       if (__mapColorBy === "tech") {
-        if (rest.assignedRepairTechnicianId && repairTechnicians[rest.assignedRepairTechnicianId])
-          return { key: "tech:" + rest.assignedRepairTechnicianId, label: repairTechnicians[rest.assignedRepairTechnicianId].name };
-        return null;
+        const ids = getTechIds(rest);
+        if (ids.length === 0) return null;
+        const pick = (selectedTechnicianId && ids.indexOf(selectedTechnicianId) !== -1)
+          ? selectedTechnicianId
+          : ids[0];
+        const extra = ids.length > 1 ? ` +${ids.length - 1}` : "";
+        return { key: "tech:" + pick, label: repairTechnicians[pick].name + extra };
       }
       if (__mapColorBy === "entity") {
         // Resolve to the entity name via the structured link when valid,
@@ -5083,9 +5732,9 @@
     }
 
     function __mapPopupHtml(restId, rest) {
-      const coachName = rest.assignedAreaCoachId && areaCoaches[rest.assignedAreaCoachId] ? areaCoaches[rest.assignedAreaCoachId].name : null;
+      const coachName = getCoachNames(rest).join(", ") || null;
       const dirName = rest.assignedDirectorId && directors[rest.assignedDirectorId] ? directors[rest.assignedDirectorId].name : null;
-      const techName = rest.assignedRepairTechnicianId && repairTechnicians[rest.assignedRepairTechnicianId] ? repairTechnicians[rest.assignedRepairTechnicianId].name : null;
+      const techName = getTechNames(rest).join(", ") || null;
       const entName = (rest.assignedEntityId && entities[rest.assignedEntityId]) ? entities[rest.assignedEntityId].name : (rest.entity || null);
       const row = (label, val) => val ? `<div style="margin:2px 0;font-size:12px;"><strong>${escapeHtml(label)}:</strong> ${escapeHtml(String(val))}</div>` : "";
       return `
