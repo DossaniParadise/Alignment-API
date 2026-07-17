@@ -4004,14 +4004,6 @@
         });
       }
 
-      if (selectCoach) {
-        selectCoach.innerHTML = `<option value="">-- Direct Report to Director --</option>`;
-        Object.keys(areaCoaches).forEach(id => {
-          const dirText = areaCoaches[id].assignedDirectorId && directors[areaCoaches[id].assignedDirectorId] ? ` (${directors[areaCoaches[id].assignedDirectorId].name})` : '';
-          selectCoach.innerHTML += `<option value="${id}">${escapeHtml(areaCoaches[id].name)}${escapeHtml(dirText)}</option>`;
-        });
-      }
-
       if (selectEntity) {
         selectEntity.innerHTML = `<option value="">-- No Entity Assigned --</option>`;
         Object.keys(entities).forEach(id => {
@@ -4021,7 +4013,6 @@
 
       // Restore selections
       if (selectDir) selectDir.value = prevDir;
-      if (selectCoach) selectCoach.value = prevCoach;
       if (selectEntity) selectEntity.value = prevEntity;
     }
 
