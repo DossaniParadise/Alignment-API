@@ -904,6 +904,18 @@
       border-color: #9d97e6;
     }
 
+    /* --- assignment pickers --- */
+    .picker { display: flex; flex-direction: column; gap: 4px; }
+    .picker-row { display: flex; align-items: center; gap: 5px; }
+    .picker-row select { flex: 1; }
+    .picker-x { background: none; border: none; color: #94a3b8; cursor: pointer;
+                font-weight: 700; font-size: .85rem; padding: 0 4px; }
+    .picker-x:hover { color: #dc2626; }
+    .picker-add { align-self: flex-start; background: none; border: none; cursor: pointer;
+                  color: var(--primary-color, #251d7f); font-size: .72rem; font-weight: 600; padding: 2px 0; }
+    .picker-hint { font-size: .68rem; color: #64748b; margin-top: 4px; }
+    .picker-warn { color: #b45309; font-weight: 600; }
+
     /* --- history tray on mobile: hidden until summoned --- */
     #historyTrayFab { display: none; }
     @media (max-width: 768px) {
@@ -1315,278 +1327,60 @@
       }
     }
 
+    /* ==================================================================
+       MOBILE (<=768px): native-app shell.
+       One panel at a time, chosen from a bottom tab bar. This replaces the
+       old accordion/stack rules - the desktop 3-column layout simply isn't
+       reflowed on phones, it's swapped for a single scrolling view.
+       ================================================================== */
     @media (max-width: 768px) {
-      /* Portrait Phone Stack Configuration */
-      body {
-        overflow-y: auto;
-        height: auto;
-      }
+      body { overflow: hidden; height: 100vh; overscroll-behavior: none; }
 
-      /* Header: allow wrapping so the title + toggle don't crush together */
-      header {
-        flex-wrap: wrap;
-        gap: 8px 12px;
-        padding: 10px 14px;
-      }
-      .header-logo h1 {
-        font-size: 1rem;
-        line-height: 1.2;
-      }
-      .header-actions {
-        gap: 12px;
-        flex-wrap: wrap;
-      }
+      header { padding: 8px 12px; flex-wrap: wrap; gap: 6px 10px; }
+      .header-logo h1 { font-size: 0.95rem; line-height: 1.2; }
 
+      /* The dashboard becomes a single full-height scroll area. */
       .dashboard-container {
-        flex-direction: column;
-        height: auto;
-        overflow-y: visible;
-        gap: 14px;
-        padding: 12px;
+        flex-direction: column; height: calc(100vh - 108px);
+        padding: 6px; gap: 0; overflow: hidden;
       }
-
-      /* Every stacked column is full width */
       .column {
-        flex: none !important;
-        width: 100% !important;
-        max-width: 100% !important;
-        min-width: 100% !important;
+        display: none !important;          /* only the active tab shows */
+        flex: 1 1 auto !important; max-width: none !important;
+        min-width: 0 !important; width: 100%; overflow: hidden;
       }
+      .column.m-active { display: flex !important; flex-direction: column; }
 
-      /* PRIORITY: Stores column jumps to the top on mobile and keeps its
-         tall, fixed workspace. Source order is Left(1), Middle(2), Stores(3). */
-      .column:nth-child(3) { order: -1; height: 560px; }
+      /* Columns 1 and 2 hold two panels each; show only the active one. */
+      .m-panel { display: none !important; flex: 1 1 auto; overflow: hidden; }
+      .m-panel.m-active { display: flex !important; flex-direction: column; border-bottom: none; }
+      .m-panel-head .btn { display: inline-flex; }
 
-      /* Secondary columns become accordion shells: no fixed height, no card
-         framing of their own, transparent so the panels read as list rows. */
-      .column:nth-child(1),
-      .column:nth-child(2) {
-        height: auto;
-        background: transparent;
-        border: none;
-        box-shadow: none;
-        overflow: visible;
-      }
-      .column:nth-child(1) { order: 1; }
-      .column:nth-child(2) { order: 2; }
+      /* Cards get roomier touch targets. */
+      .card { padding: 10px 12px; }
+      .card-actions .btn { min-width: 34px; min-height: 34px; }
 
-      /* ---- ACCORDION PANELS (Directors, Technicians, Coaches, Entities) ---- */
-      .m-panel {
-        flex: none !important;
-        display: block !important;
-        overflow: hidden !important;
-        background: var(--bg-white);
-        border: 1px solid var(--neutral-border) !important;
-        border-radius: 12px;
-        box-shadow: var(--shadow-sm);
-        margin-bottom: 10px;
+      /* --- bottom tab bar --- */
+      .m-tabs {
+        display: flex; position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000;
+        background: #fff; border-top: 1px solid var(--neutral-border);
+        padding-bottom: env(safe-area-inset-bottom, 0);
+        box-shadow: 0 -2px 10px rgba(0,0,0,.08);
       }
-      .column:nth-child(1) .m-panel:last-child,
-      .column:nth-child(2) .m-panel:last-child { margin-bottom: 0; }
-
-      /* Header becomes the full-width tap target for the whole row */
-      .m-panel-head {
-        cursor: pointer;
-        padding: 16px 16px;
-        background: var(--bg-white);
-        border-bottom: none;
-        -webkit-tap-highlight-color: transparent;
-        user-select: none;
+      .m-tab {
+        flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+        border: none; background: none; cursor: pointer; padding: 7px 2px 6px;
+        color: #94a3b8; font-size: .58rem; font-weight: 600; letter-spacing: .02em;
       }
-      .m-panel-head .column-title {
-        font-size: 1rem;
-        font-weight: 650;
-        color: #0f172a;
-        flex: 1;
-      }
-      .m-panel-head .column-counter {
-        font-size: 0.72rem;
-        padding: 2px 8px;
-      }
-      /* The +Add button is hidden in the collapsed header; it lives inside the
-         open panel body instead, so a tap on the row only ever toggles. */
-      .m-panel-head .btn { display: none; }
-
-      /* Chevron affordance */
-      .m-chevron {
-        width: 10px;
-        height: 10px;
-        border-right: 2px solid #94a3b8;
-        border-bottom: 2px solid #94a3b8;
-        transform: rotate(-45deg);
-        transition: transform 0.25s ease;
-        margin-right: 2px;
-        flex-shrink: 0;
-      }
-      .m-panel.open .m-chevron { transform: rotate(45deg); }
-      .m-panel.open .m-panel-head { border-bottom: 1px solid var(--neutral-border); }
-      .m-panel.open .m-panel-head .column-title { color: var(--primary-color); }
-
-      /* Collapsed: everything after the header is clipped away.
-         Open: the body area is revealed with a capped, scrollable height. */
-      .m-panel > *:not(.m-panel-head) {
-        max-height: 0;
-        min-height: 0 !important;
-        height: auto !important;
-        flex: none !important;
-        margin: 0 !important;
-        padding-top: 0 !important;
-        padding-bottom: 0 !important;
-        border-width: 0 !important;
-        opacity: 0;
-        transition: max-height 0.28s ease, opacity 0.2s ease, padding 0.28s ease;
-        pointer-events: none;
-      }
-      .m-panel.open > *:not(.m-panel-head) {
-        max-height: 60vh;
-        opacity: 1;
-        pointer-events: auto;
-      }
-      .m-panel.open .cards-list {
-        padding-top: 12px !important;
-        padding-bottom: 12px !important;
-      }
-      .m-panel.open .m-panel-addbar {
-        padding-top: 10px !important;
-        padding-bottom: 12px !important;
-        border-top-width: 1px !important;
-      }
-      .m-panel .cards-list {
-        max-height: 52vh;
-      }
-      /* Re-add button surfaces inside open panels as a full-width action */
-      .m-panel-addbar {
-        display: none;
-        padding: 10px 12px 12px;
-        border-top: 1px solid var(--neutral-border);
-        background: var(--neutral-light);
-      }
-      .m-panel.open .m-panel-addbar { display: block; }
-      .m-panel-addbar .btn { width: 100%; }
-
-      /* Every stacked column is full width with a comfortable list height */
-      .column-legacy-noop { }
-
-      /* On phones the Stores grid is a single readable column */
-      #restaurantsList {
-        grid-template-columns: 1fr !important;
-        gap: 10px !important;
-        padding: 10px !important;
-      }
-
-      /* Bigger, easier-to-hit cards */
-      .card {
-        padding: 10px 12px;
-        border-radius: 6px;
-      }
-      .cards-list {
-        gap: 8px;
-        padding: 10px;
-      }
-
-      /* SEARCH: make it the prominent element in the Stores column */
-      .column:nth-child(3) .column-action-bar {
-        padding: 12px 12px 10px;
-        gap: 12px;
-      }
-      #restaurantSearchInput {
-        padding: 12px 40px 12px 38px !important;
-        font-size: 1rem !important;
-        border-radius: 10px !important;
-        border-width: 2px !important;
-        box-shadow: var(--shadow-sm);
-      }
-      #restaurantSearchInput:focus {
-        border-color: var(--primary-color) !important;
-        box-shadow: 0 0 0 3px rgba(37,29,127,0.12) !important;
-        outline: none;
-      }
-      /* Scale the search icon + clear affordance to match */
-      .column:nth-child(3) .column-action-bar > div:first-child > span:first-child {
-        font-size: 1.05rem !important;
-        left: 12px !important;
-      }
-      #clearSearchBtn {
-        font-size: 1.1rem !important;
-        right: 10px !important;
-        width: 30px;
-        height: 30px;
-        line-height: 30px;
-        text-align: center;
-      }
-
-      /* Larger sort dropdowns everywhere */
-      .control-select {
-        font-size: 0.9rem;
-        padding: 10px 12px;
-        min-height: 44px;
-        border-radius: 8px;
-      }
-      #restaurantSortSelect {
-        max-width: none !important;
-        flex: 1 !important;
-        font-size: 0.9rem !important;
-        padding: 10px 12px !important;
-      }
-      .column-action-bar {
-        padding: 10px 12px;
-        gap: 10px;
-      }
-
-      /* Bigger tap targets for all action buttons */
-      .btn {
-        font-size: 0.85rem;
-        padding: 10px 14px;
-        border-radius: 8px;
-        min-height: 40px;
-      }
-      .btn-xs {
-        font-size: 0.8rem;
-        padding: 8px 12px;
-        min-height: 38px;
-      }
-      .column-header {
-        padding: 10px 12px;
-      }
-      .column-title {
-        font-size: 0.95rem;
-      }
-      .btn-icon {
-        min-width: 36px;
-        min-height: 36px;
-        font-size: 0.85rem;
-      }
-
-      /* Comfortable, thumb-friendly form fields in modals */
-      .form-group { margin-bottom: 14px; }
-      .form-group label { font-size: 0.85rem; margin-bottom: 6px; }
-      .form-group input, .form-group select {
-        font-size: 1rem;
-        padding: 12px 12px;
-        border-radius: 8px;
-        min-height: 46px;
-      }
-      .modal-body { padding: 16px; }
-      .modal-footer { padding: 12px 16px; gap: 10px; }
-      .modal-footer .btn { flex: 1; }
-      .filter-message-bar { padding: 10px 12px; font-size: 0.85rem; }
-      .clear-filter-btn { font-size: 0.85rem; padding: 4px; }
-
-      /* Larger lock toggle for easier tapping */
-      .switch { width: 44px; height: 26px; }
-      .slider:before { height: 20px; width: 20px; }
-      input:checked + .slider:before { transform: translateX(18px); }
-
-      .history-tray {
-        position: relative;
-        height: auto !important;
-        min-height: 40px;
-      }
-      .history-tray-header { padding: 12px 14px; }
-      .history-tray-body {
-        max-height: 240px;
-      }
+      .m-tab-ico { font-size: 1.05rem; line-height: 1; }
+      .m-tab-n { font-size: .52rem; opacity: .75; }
+      .m-tab.on { color: var(--primary-color, #251d7f); }
+      .m-tab.on .m-tab-ico { transform: translateY(-1px); }
     }
+
+    /* Tab bar is mobile-only. */
+    .m-tabs { display: none; }
+
 
     /* Universal Landscape Mobile / Compact devices height checks (< 550px) */
     @media (max-height: 550px) {
@@ -1819,12 +1613,11 @@
   <main class="dashboard-container">
     
     <!-- LEFT COLUMN - DIRECTORS & TECHNICIANS -->
-    <section class="column" style="display: flex; flex-direction: column;">
+    <section class="column" data-col="a" style="display: flex; flex-direction: column;">
       <!-- Directors of Operations (Top Half) -->
       <div class="m-panel" data-panel="director" style="flex: 1; display: flex; flex-direction: column; overflow: hidden; border-bottom: 2px solid var(--neutral-border);">
         <div class="column-header m-panel-head">
           <div class="column-title">
-            <span class="m-chevron" aria-hidden="true"></span>
             Directors of Operations
             <span class="column-counter" id="directorCount">0</span>
           </div>
@@ -1840,7 +1633,6 @@
       <div class="m-panel" data-panel="technician" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
         <div class="column-header m-panel-head">
           <div class="column-title">
-            <span class="m-chevron" aria-hidden="true"></span>
             Repair Technicians
             <span class="column-counter" id="technicianCount">0</span>
           </div>
@@ -1860,12 +1652,11 @@
     </section>
 
     <!-- MIDDLE COLUMN - AREA COACHES & ENTITIES -->
-    <section class="column" style="display: flex; flex-direction: column;">
+    <section class="column" data-col="b" style="display: flex; flex-direction: column;">
       <!-- Area Coaches (Top Half) -->
       <div class="m-panel" data-panel="coach" style="flex: 1; display: flex; flex-direction: column; overflow: hidden; border-bottom: 2px solid var(--neutral-border);">
         <div class="column-header m-panel-head">
           <div class="column-title">
-            <span class="m-chevron" aria-hidden="true"></span>
             Area Coaches
             <span class="column-counter" id="coachCount">0</span>
           </div>
@@ -1897,7 +1688,6 @@
       <div class="m-panel" data-panel="entity" style="flex: 1; display: flex; flex-direction: column; overflow: hidden;">
         <div class="column-header m-panel-head">
           <div class="column-title">
-            <span class="m-chevron" aria-hidden="true"></span>
             Entities
             <span class="column-counter" id="entityCount">0</span>
           </div>
@@ -1917,7 +1707,7 @@
     </section>
 
     <!-- RIGHT COLUMN - RESTAURANTS -->
-    <section class="column">
+    <section class="column" data-col="store">
       <div class="column-header">
         <div class="column-title">
           Stores
@@ -2036,6 +1826,15 @@
   <!-- ==================================================================== -->
   <!-- COLLAPSIBLE DESK HISTORY TRAY                                        -->
   <!-- ==================================================================== -->
+  <!-- Mobile bottom tab bar. Stores is the default view. -->
+  <nav class="m-tabs" id="mTabs">
+    <button class="m-tab" data-tab="director"   onclick="mShow('director')"><span class="m-tab-ico">👔</span>DO<span class="m-tab-n" id="mnDirector"></span></button>
+    <button class="m-tab" data-tab="technician" onclick="mShow('technician')"><span class="m-tab-ico">🛠</span>Techs<span class="m-tab-n" id="mnTech"></span></button>
+    <button class="m-tab" data-tab="coach"      onclick="mShow('coach')"><span class="m-tab-ico">📋</span>Coaches<span class="m-tab-n" id="mnCoach"></span></button>
+    <button class="m-tab" data-tab="entity"     onclick="mShow('entity')"><span class="m-tab-ico">🏢</span>Entities<span class="m-tab-n" id="mnEntity"></span></button>
+    <button class="m-tab on" data-tab="store"   onclick="mShow('store')"><span class="m-tab-ico">🍔</span>Stores<span class="m-tab-n" id="mnStore"></span></button>
+  </nav>
+
   <!-- Mobile: the tray is hidden by default; this button brings it back. -->
   <button id="historyTrayFab" onclick="toggleHistoryTrayMobile()" title="Organizational changes">📋<span id="historyFabCount"></span></button>
 
@@ -2136,18 +1935,14 @@
           </div>
 
           <div class="form-group" id="groupAssignedCoach" style="display: none;">
-            <label>Assigned Area Coaches <span style="font-weight:400;color:#94a3b8;font-size:0.7rem;">(select any number)</span></label>
-            <div id="coachCheckList" style="border:1px solid var(--neutral-border);border-radius:4px;padding:6px 8px;max-height:110px;overflow-y:auto;background:#fff;">
-              <!-- Populated dynamically -->
-            </div>
-            <div id="coachDirectorHint" style="font-size:0.68rem;color:#64748b;margin-top:4px;"></div>
+            <label>Assigned Area Coach</label>
+            <div id="coachPicker" class="picker"></div>
+            <div id="coachDirectorHint" class="picker-hint"></div>
           </div>
 
           <div class="form-group" id="groupAssignedTech" style="display: none;">
-            <label>Assigned Repair Technicians <span style="font-weight:400;color:#94a3b8;font-size:0.7rem;">(select any number)</span></label>
-            <div id="techCheckList" style="border:1px solid var(--neutral-border);border-radius:4px;padding:6px 8px;max-height:110px;overflow-y:auto;background:#fff;">
-              <!-- Populated dynamically -->
-            </div>
+            <label>Assigned Repair Technician</label>
+            <div id="techPicker" class="picker"></div>
           </div>
 
         </div>
@@ -2320,6 +2115,7 @@
 
     // Load data immediately on startup
     loadDashboardData();
+    mShow("store");   // default mobile view; harmless on desktop
 
     // ==========================================
     // 2. STATE DATA CACHE & SELECTION MODEL
@@ -2611,6 +2407,7 @@
       renderRestaurants();
       renderHistory();
       updateFilterBars();
+      mSyncCounts();
     }
 
     // Toggle expansion inline (Only one allowed expanded per column at a time)
@@ -3957,8 +3754,8 @@
         setupFormFields(type);
         if (type === "restaurant") {
           // Preselect whatever coach is currently filtered, matching the old behaviour.
-          renderCoachCheckList(selectedCoachId ? [selectedCoachId] : []);
-          renderTechCheckList(selectedTechnicianId ? [selectedTechnicianId] : []);
+          renderPicker("coach", selectedCoachId ? [selectedCoachId] : []);
+          renderPicker("tech", selectedTechnicianId ? [selectedTechnicianId] : []);
         }
         document.getElementById("crudModal").classList.add("active");
       });
@@ -4020,8 +3817,8 @@
           document.getElementById("inputLongitude").value = item.longitude || "";
           document.getElementById("inputEmail").value = item.email || "";
           document.getElementById("inputPhone").value = item.phone || "";
-          renderCoachCheckList(getCoachIds(item));
-          renderTechCheckList(getTechIds(item));
+          renderPicker("coach", getCoachIds(item));
+          renderPicker("tech", getTechIds(item));
           document.getElementById("selectAssignedDirector").value = item.assignedDirectorId || "";
         }
 
@@ -4077,77 +3874,83 @@
       if (selectEntity) selectEntity.value = prevEntity;
     }
 
-    // ---- multi-select check lists in the edit dialog ----
+    // ---- assignment pickers (edit dialog) ----
+    // One dropdown per assigned person. Most stores have exactly one, so the
+    // common case looks like a plain <select>; "+ Add another" appears only when
+    // a second is actually needed. Generic over coaches and techs.
 
-    function renderCoachCheckList(selectedIds) {
-      const box = document.getElementById("coachCheckList");
+    const PICKERS = {
+      coach: { box: "coachPicker", src: () => areaCoaches, label: "area coach", onChange: () => onCoachPickChange() },
+      tech:  { box: "techPicker",  src: () => repairTechnicians, label: "repair tech", onChange: null }
+    };
+
+    function renderPicker(kind, selectedIds) {
+      const cfg = PICKERS[kind];
+      const box = document.getElementById(cfg.box);
       if (!box) return;
-      const sel = selectedIds || [];
-      const ids = Object.keys(areaCoaches);
-      if (ids.length === 0) {
-        box.innerHTML = `<div style="font-size:0.72rem;color:#94a3b8;font-style:italic;">No area coaches exist yet.</div>`;
-        return;
-      }
-      box.innerHTML = ids.map(id => {
-        const dir = areaCoaches[id].assignedDirectorId && directors[areaCoaches[id].assignedDirectorId]
-          ? ` <span style="color:#94a3b8;">(${escapeHtml(directors[areaCoaches[id].assignedDirectorId].name)})</span>` : "";
-        return `<label style="display:flex;align-items:center;gap:6px;padding:2px 0;font-size:0.76rem;cursor:pointer;">
-          <input type="checkbox" value="${id}" ${sel.indexOf(id) !== -1 ? "checked" : ""} onchange="onCoachCheckChange()">
-          <span>${escapeHtml(areaCoaches[id].name)}${dir}</span>
-        </label>`;
-      }).join("");
-      onCoachCheckChange();
+      const all = cfg.src();
+      const ids = (selectedIds || []).filter(id => all[id]);
+      if (ids.length === 0) ids.push("");   // always show one dropdown
+
+      const options = (cur) => `<option value="">-- none --</option>` +
+        Object.values(all)
+          .filter(r => r.id === cur || ids.indexOf(r.id) === -1)   // no duplicate picks
+          .map(r => `<option value="${r.id}" ${r.id === cur ? "selected" : ""}>${escapeHtml(r.name)}</option>`)
+          .join("");
+
+      const rows = ids.map((id, i) => `
+        <div class="picker-row">
+          <select onchange="pickerSet('${kind}', ${i}, this.value)">${options(id)}</select>
+          ${ids.length > 1 ? `<button type="button" class="picker-x" onclick="pickerRemove('${kind}', ${i})" title="Remove">✕</button>` : ""}
+        </div>`).join("");
+
+      const canAdd = Object.keys(all).length > ids.filter(Boolean).length;
+      box.innerHTML = rows + (canAdd
+        ? `<button type="button" class="picker-add" onclick="pickerAdd('${kind}')">+ Add another ${cfg.label}</button>` : "");
+      if (cfg.onChange) cfg.onChange();
     }
 
-    function readCoachCheckList() {
-      const box = document.getElementById("coachCheckList");
+    function readPicker(kind) {
+      const box = document.getElementById(PICKERS[kind].box);
       if (!box) return [];
-      return Array.from(box.querySelectorAll("input[type=checkbox]:checked")).map(cb => cb.value);
+      const ids = Array.from(box.querySelectorAll("select")).map(s => s.value).filter(Boolean);
+      return ids.filter((id, i) => ids.indexOf(id) === i);
     }
 
-    // Keep the director field in step with whatever coaches are ticked.
-    function onCoachCheckChange() {
-      const ids = readCoachCheckList();
+    function pickerSet(kind, idx, val) {
+      const ids = readPicker(kind);
+      renderPicker(kind, ids);
+    }
+
+    function pickerAdd(kind) {
+      const ids = readPicker(kind);
+      ids.push("");
+      renderPicker(kind, ids.filter((v, i) => v || i === ids.length - 1));
+    }
+
+    function pickerRemove(kind, idx) {
+      const box = document.getElementById(PICKERS[kind].box);
+      const vals = Array.from(box.querySelectorAll("select")).map(s => s.value);
+      vals.splice(idx, 1);
+      renderPicker(kind, vals.filter(Boolean));
+    }
+
+    // Keep the director field in step with whatever coaches are selected.
+    function onCoachPickChange() {
+      const ids = readPicker("coach");
       const hint = document.getElementById("coachDirectorHint");
       const dirSelect = document.getElementById("selectAssignedDirector");
-      if (ids.length === 0) {
-        if (hint) hint.innerHTML = "";
-        return;
-      }
+      if (!hint) return;
+      if (ids.length === 0) { hint.innerHTML = ""; return; }
+
       const res = resolveDirectorForCoaches(ids);
       if (dirSelect && res.directorId) dirSelect.value = res.directorId;
-      if (!hint) return;
       if (res.conflict) {
         const names = res.directorIds.map(d => (directors[d] && directors[d].name) || d).join(" / ");
-        hint.innerHTML = `<span style="color:#b45309;font-weight:600;">⚠ These coaches report to different directors (${escapeHtml(names)}). A store should sit under one director.</span>`;
+        hint.innerHTML = `<span class="picker-warn">⚠ These coaches report to different directors (${escapeHtml(names)}).</span>`;
       } else if (res.directorId && directors[res.directorId]) {
-        hint.innerHTML = `Director set from coach: <strong>${escapeHtml(directors[res.directorId].name)}</strong>`;
-      } else {
-        hint.innerHTML = "";
-      }
-    }
-
-    function renderTechCheckList(selectedIds) {
-      const box = document.getElementById("techCheckList");
-      if (!box) return;
-      const sel = selectedIds || [];
-      const ids = Object.keys(repairTechnicians);
-      if (ids.length === 0) {
-        box.innerHTML = `<div style="font-size:0.72rem;color:#94a3b8;font-style:italic;">No repair technicians exist yet.</div>`;
-        return;
-      }
-      box.innerHTML = ids.map(id =>
-        `<label style="display:flex;align-items:center;gap:6px;padding:2px 0;font-size:0.76rem;cursor:pointer;">
-          <input type="checkbox" value="${id}" ${sel.indexOf(id) !== -1 ? "checked" : ""}>
-          <span>${escapeHtml(repairTechnicians[id].name)}</span>
-        </label>`
-      ).join("");
-    }
-
-    function readTechCheckList() {
-      const box = document.getElementById("techCheckList");
-      if (!box) return [];
-      return Array.from(box.querySelectorAll("input[type=checkbox]:checked")).map(cb => cb.value);
+        hint.innerHTML = `Director: <strong>${escapeHtml(directors[res.directorId].name)}</strong>`;
+      } else hint.innerHTML = "";
     }
 
     // Cascade director assignment if coach changes in manual edit dialog
@@ -4203,8 +4006,8 @@
           assignedDirectorId: document.getElementById("selectAssignedDirector").value
         };
      } else if (type === "restaurant") {
-        const selectedCoachIds = readCoachCheckList();
-        const selectedTechIds = readTechCheckList();
+        const selectedCoachIds = readPicker("coach");
+        const selectedTechIds = readPicker("tech");
         if (!warnIfDirectorConflict(selectedCoachIds)) return;
         
         // 1. Safe check for the entity dropdown (in case you add it later)
@@ -5488,6 +5291,48 @@
       });
     }
 
+    // ---- mobile tab shell ----
+    // Shows exactly one panel at a time. Each tab maps to a data-panel (inside
+    // column a/b) or the whole stores column. No-op on desktop, where CSS keeps
+    // every column visible regardless of these classes.
+    const M_TABS = {
+      director:   { col: "a", panel: "director"   },
+      technician: { col: "a", panel: "technician" },
+      coach:      { col: "b", panel: "coach"      },
+      entity:     { col: "b", panel: "entity"     },
+      store:      { col: "store", panel: null     }
+    };
+    let mActiveTab = "store";
+
+    function mShow(tab) {
+      const cfg = M_TABS[tab];
+      if (!cfg) return;
+      mActiveTab = tab;
+
+      document.querySelectorAll("[data-col]").forEach(c =>
+        c.classList.toggle("m-active", c.getAttribute("data-col") === cfg.col));
+      document.querySelectorAll("[data-panel]").forEach(p =>
+        p.classList.toggle("m-active", p.getAttribute("data-panel") === cfg.panel));
+      document.querySelectorAll(".m-tab").forEach(b =>
+        b.classList.toggle("on", b.getAttribute("data-tab") === tab));
+
+      const host = document.querySelector(".dashboard-container");
+      if (host) host.scrollTop = 0;
+    }
+
+    // Live counts on the tabs, so the bar doubles as an at-a-glance summary.
+    function mSyncCounts() {
+      const set = (id, n) => {
+        const el = document.getElementById(id);
+        if (el) el.innerText = n ? String(n) : "";
+      };
+      set("mnDirector", Object.keys(directors).length);
+      set("mnTech",     Object.keys(repairTechnicians).length);
+      set("mnCoach",    Object.keys(areaCoaches).length);
+      set("mnEntity",   Object.keys(entities).length);
+      set("mnStore",    Object.keys(restaurants).length);
+    }
+
     function escapeHtml(str) {
       if (!str) return '';
       return String(str)
@@ -6339,90 +6184,7 @@
   <!-- phones. Fully inert on desktop; desktop layout is untouched.         -->
   <!-- ==================================================================== -->
   <script>
-    (function () {
-      const MOBILE = "(max-width: 768px)";
-
-      function isMobile() {
-        return window.matchMedia(MOBILE).matches;
-      }
-
-      // Move each panel's "+ Add" button into a full-width action bar inside
-      // the panel body, so the collapsed row is a clean single tap target.
-      function ensureAddBars() {
-        document.querySelectorAll(".m-panel").forEach((panel) => {
-          if (panel.querySelector(".m-panel-addbar")) return;
-          const headBtn = panel.querySelector(".m-panel-head .btn");
-          if (!headBtn) return;
-          const bar = document.createElement("div");
-          bar.className = "m-panel-addbar";
-          const clone = headBtn.cloneNode(true);
-          // Preserve the original onclick behavior.
-          clone.removeAttribute("onclick");
-          clone.addEventListener("click", (e) => {
-            e.stopPropagation();
-            headBtn.click();
-          });
-          bar.appendChild(clone);
-          // Insert the action bar as the last child of the panel.
-          panel.appendChild(bar);
-        });
-      }
-
-      function collapseAll() {
-        document.querySelectorAll(".m-panel.open").forEach((p) => p.classList.remove("open"));
-      }
-
-      function togglePanel(panel) {
-        const willOpen = !panel.classList.contains("open");
-        // Accordion behavior: one open at a time within the mobile stack.
-        collapseAll();
-        if (willOpen) {
-          panel.classList.add("open");
-          // Smoothly bring the freshly opened panel into view.
-          setTimeout(() => {
-            panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
-          }, 60);
-        }
-      }
-
-      let bound = false;
-      function bindHeaders() {
-        if (bound) return;
-        bound = true;
-        document.querySelectorAll(".m-panel-head").forEach((head) => {
-          head.addEventListener("click", (e) => {
-            if (!isMobile()) return; // desktop: do nothing
-            // Ignore taps that originate on the (hidden) header button.
-            if (e.target.closest(".btn")) return;
-            const panel = head.closest(".m-panel");
-            if (panel) togglePanel(panel);
-          });
-        });
-      }
-
-      function apply() {
-        if (isMobile()) {
-          ensureAddBars();
-          bindHeaders();
-          // Start fully collapsed for a calm first impression.
-          if (!document.body.dataset.mInit) {
-            collapseAll();
-            document.body.dataset.mInit = "1";
-          }
-        }
-      }
-
-      if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", apply);
-      } else {
-        apply();
-      }
-      // Re-evaluate on rotation / resize across the breakpoint.
-      window.matchMedia(MOBILE).addEventListener("change", () => {
-        document.body.removeAttribute("data-m-init");
-        apply();
-      });
-    })();
+    // Mobile accordion removed - replaced by the bottom tab bar (mShow).
   </script>
 </body>
 </html>
