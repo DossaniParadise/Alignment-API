@@ -904,6 +904,38 @@
       border-color: #9d97e6;
     }
 
+    /* --- history tray on mobile: hidden until summoned --- */
+    #historyTrayFab { display: none; }
+    @media (max-width: 768px) {
+      .history-tray { display: none; }
+      .history-tray.mobile-open { display: block; }
+      #historyTrayFab {
+        display: flex; align-items: center; gap: 4px;
+        position: fixed; right: 14px; bottom: 14px; z-index: 900;
+        background: var(--primary-color, #251d7f); color: #fff;
+        border: none; border-radius: 999px; padding: 10px 14px;
+        font-size: 1rem; font-weight: 700; cursor: pointer;
+        box-shadow: 0 3px 10px rgba(0,0,0,.3);
+      }
+      #historyFabCount { font-size: .7rem; }
+    }
+
+    /* --- batch import preview --- */
+    .bchips { display:inline-flex; align-items:center; gap:3px; flex-wrap:wrap; justify-content:flex-end; }
+    .bchip { display:inline-flex; align-items:center; gap:2px; background:#e0e7ff; color:#3730a3;
+             border-radius:8px; padding:0 5px; font-size:0.6rem; font-weight:600; white-space:nowrap; }
+    .bchip-new { background:#dcfce7; color:#166534; border:1px dashed #4ade80; }
+    .bchip button { background:none; border:none; color:inherit; cursor:pointer; font-weight:700; padding:0; }
+    .bchip-sel { font-size:0.62rem; padding:1px 2px; border:1px solid #cbd5e1; border-radius:3px; max-width:95px; }
+    .brow { border:1px solid #e2e8f0; border-radius:5px; padding:7px 9px; background:#fff; }
+    .bcell { border:1px solid #e2e8f0; background:#fff; border-radius:4px; padding:3px 5px; }
+    .bcell-new { border-color:#86efac; background:#f0fdf4; }
+    .bcell-ovr { border-color:#fca5a5; background:#fef2f2; }
+    .bcell input { width:100%; border:none; background:transparent; font-size:0.7rem; color:#0f172a; padding:1px 0; outline:none; }
+    .bcell-lbl { font-size:0.58rem; font-weight:700; text-transform:uppercase; }
+    .bwas { font-size:0.6rem; color:#b91c1c; text-decoration:line-through; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .bgrid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:4px; }
+
     .btn-primary {
       background-color: var(--primary-color);
       color: var(--bg-white);
@@ -1995,6 +2027,9 @@
   <!-- ==================================================================== -->
   <!-- COLLAPSIBLE DESK HISTORY TRAY                                        -->
   <!-- ==================================================================== -->
+  <!-- Mobile: the tray is hidden by default; this button brings it back. -->
+  <button id="historyTrayFab" onclick="toggleHistoryTrayMobile()" title="Organizational changes">📋<span id="historyFabCount"></span></button>
+
   <section class="history-tray" id="historyTray">
     <div class="history-tray-header" onclick="toggleHistoryTray()">
       <div style="display: flex; align-items: center; gap: 8px;">
@@ -2229,13 +2264,32 @@
   <script>
     const API_BASE_URL = "https://alignment-api-khaki.vercel.app/api/dpm-alignment";
 
-    async function loadDashboardData() {
+    async function loadDashboardData(opts) {
+      const silent = !!(opts && opts.silent);
+      let data;
+
+      // --- network phase: only real fetch failures touch the badge ---
       try {
         const response = await fetch(API_BASE_URL);
         if (!response.ok) throw new Error(`API Error: ${response.status}`);
+        data = await response.json();
+      } catch (error) {
+        console.error("Failed to reach API:", error);
+        const statusBadge = document.getElementById("connectionStatus");
+        if (statusBadge) statusBadge.className = "status-badge";
+        const statusText = document.getElementById("statusText");
+        if (statusText) statusText.innerText = "Connection Failed";
+        return;
+      }
 
-        const data = await response.json();
+      // The fetch worked, so the connection is good no matter what happens next.
+      const statusBadge = document.getElementById("connectionStatus");
+      if (statusBadge) statusBadge.className = "status-badge online";
+      const statusText = document.getElementById("statusText");
+      if (statusText) statusText.innerText = "API Connected";
 
+      // --- render phase: a bug here must not masquerade as a network problem ---
+      try {
         directors = data.directors || {};
         areaCoaches = data.areaCoaches || {};
         repairTechnicians = data.repairTechnicians || {};
@@ -2248,20 +2302,10 @@
         renderAll();
         updateRelationshipDropdowns();
         checkInitialLoadCaptured();
-
-        const statusBadge = document.getElementById("connectionStatus");
-        if (statusBadge) statusBadge.className = "status-badge online";
-        
-        const statusText = document.getElementById("statusText");
-        if (statusText) statusText.innerText = "API Connected";
-
       } catch (error) {
-        console.error("Failed to load data:", error);
-        const statusBadge = document.getElementById("connectionStatus");
-        if (statusBadge) statusBadge.className = "status-badge";
-        
-        const statusText = document.getElementById("statusText");
-        if (statusText) statusText.innerText = "Connection Failed";
+        console.error("Data loaded but rendering failed:", error);
+        if (statusText) statusText.innerText = "Display Error (data OK)";
+        if (!silent) throw error;
       }
     }
 
@@ -2303,22 +2347,30 @@
         
         // Universal function to push data to Vercel
         const executeVercelPost = async (updates, callback) => {
+          // 1. Apply locally and repaint straight away so the UI never waits on
+          //    the network. 2. POST. 3. Quietly re-fetch to reconcile.
+          applyUpdatesLocally(updates);
+          renderAll();
+
           try {
             const response = await fetch(API_BASE_URL, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ password: EDIT_PASSWORD, updates: updates })
             });
-            
+
             if (!response.ok) {
-              const errData = await response.json();
+              const errData = await response.json().catch(() => ({}));
               throw new Error(errData.error || "API Write Error");
             }
-            
-            await loadDashboardData(); // Refresh UI instantly to show the new data
+
+            // Background reconcile - no await on the render path.
+            loadDashboardData({ silent: true });
             if (callback) callback(null);
           } catch (err) {
             console.error(err);
+            // Local state may now be ahead of the server; pull the truth back.
+            loadDashboardData({ silent: true });
             if (callback) callback(err);
           }
         };
@@ -4388,13 +4440,19 @@
             storeNumber: -1,
             latitude: -1,
             longitude: -1,
-            areaCoach: -1
+            areaCoach: -1,
+            director: -1,
+            dba: -1
           };
           
           columns.forEach((col, colIdx) => {
             const val = col.toLowerCase();
             if (val.includes('area coach') || val.includes('areacoach') || val === 'coach' || val === 'ac') {
               headerIndices.areaCoach = colIdx;
+            } else if (val === 'director' || val.includes('director')) {
+              headerIndices.director = colIdx;
+            } else if (val.includes('dba')) {
+              headerIndices.dba = colIdx;
             } else if (val.includes('store name') || val.includes('storename') || val === 'store') {
               headerIndices.storeName = colIdx;
             } else if (val.includes('manager') || val.includes('store manager')) {
@@ -4435,6 +4493,8 @@
         let latitude = '';
         let longitude = '';
         let areaCoachName = '';
+        let directorName = '';
+        let dbaName = '';
         
         if (headerIndices) {
           if (headerIndices.storeName !== -1) rawStoreName = columns[headerIndices.storeName] || '';
@@ -4449,6 +4509,8 @@
           if (headerIndices.latitude !== -1) latitude = columns[headerIndices.latitude] || '';
           if (headerIndices.longitude !== -1) longitude = columns[headerIndices.longitude] || '';
           if (headerIndices.areaCoach !== -1) areaCoachName = columns[headerIndices.areaCoach] || '';
+          if (headerIndices.director !== -1) directorName = columns[headerIndices.director] || '';
+          if (headerIndices.dba !== -1) dbaName = columns[headerIndices.dba] || '';
         } else {
           // Auto-detect format structure (Old vs New vs GPS 10-col vs GPS 7-col format)
           let is10ColGpsFormat = false;
@@ -4589,14 +4651,22 @@
         
         const combinedAddress = addressParts.join(', ');
         
+        // Build the display name as "<Brand> #<Number> <Name>", e.g.
+        // "Burger King #3630 McCann". The brand comes from the DBA column when
+        // present (that's the only place it appears in the sheet); if the plain
+        // name already carries the brand, it's left alone.
+        const fullStoreName = buildFullStoreName(rawStoreName, storeNumber, dbaName);
+
         results.push({
           storeNumber: storeNumber || '#',
-          storeName: rawStoreName || 'Unknown Restaurant',
+          storeName: fullStoreName || 'Unknown Restaurant',
           storeManager,
           address: combinedAddress,
           phone: formatPhoneNumber(phone),
           entity: entity,
           areaCoachName: (areaCoachName || "").trim(),
+          directorName: (directorName || "").trim(),
+          dbaName: (dbaName || "").trim(),
           latitude: latitude || "",
           longitude: longitude || "",
           assignedAreaCoachId: "",
@@ -4683,15 +4753,21 @@
       const text = document.getElementById("batchTextArea").value;
       const parsed = parseBatchInput(text);
       currentParsedStores = parsed;
+      resetBatchPending();
 
       const existingList = Object.values(restaurants || {});
 
       batchRows = parsed.map(store => {
         const matched = existingList.find(r => doStoreNumbersMatch(r.storeNumber, store.storeNumber));
-        const coach = matchCoachesByName(store.areaCoachName);
 
-        // Default every detected overwrite to CHECKED (user asked for this),
-        // shown in red so nothing changes silently.
+        // Coaches: resolve each name, creating any that don't exist yet.
+        const parts = batchNorm(store.areaCoachName)
+          .split(/\s*[\/;,|]\s*|\s+&\s+|\s+and\s+/i).map(x => x.trim()).filter(Boolean);
+        const coachIds = parts.map(n => resolveOrStage("coaches", n)).filter(Boolean);
+
+        const directorId = resolveOrStage("directors", store.directorName);
+        const entityId   = resolveOrStage("entities", store.entity);
+
         const overwrite = {};
         if (matched) {
           BATCH_FIELDS.forEach(f => {
@@ -4701,17 +4777,36 @@
           });
         }
 
+        // Only look up GPS when we have no coords, or the address actually moved.
+        // An unchanged address on a store that already has coords is left alone.
+        let geo;
+        const hasIncomingCoords = batchNorm(store.latitude) && batchNorm(store.longitude);
+        const oldAddr = batchNorm(matched && matched.address);
+        const newAddr = batchNorm(store.address);
+        const hasOldCoords = matched && batchNorm(matched.latitude) && batchNorm(matched.longitude);
+
+        if (hasIncomingCoords) {
+          geo = "have";
+        } else if (matched && hasOldCoords && oldAddr === newAddr) {
+          // Reuse what's already stored - no lookup needed.
+          store.latitude  = matched.latitude;
+          store.longitude = matched.longitude;
+          geo = "unchanged";
+        } else {
+          geo = "pending";
+        }
+
         return {
           data: { ...store },
           matchedId: matched ? matched.id : null,
           existing: matched || null,
           isNew: !matched,
-          coachIds: coach.ids,
-          coachUnmatched: coach.unmatched,
-          coachRaw: batchNorm(store.areaCoachName),
+          coachIds,
+          directorId,
+          entityId,
           skip: false,
           overwrite,
-          geo: (batchNorm(store.latitude) && batchNorm(store.longitude)) ? "have" : "pending"
+          geo
         };
       });
 
@@ -4763,23 +4858,20 @@
       batchRows.forEach((row, idx) => {
         const stripe = row.skip ? "#cbd5e1" : (row.isNew ? "#22c55e" : "#ef4444");
         const tag = row.isNew
-          ? `<span style="background:#dcfce7;color:#166534;padding:1px 6px;border-radius:8px;font-size:0.62rem;font-weight:700;">NEW</span>`
-          : `<span style="background:#fee2e2;color:#991b1b;padding:1px 6px;border-radius:8px;font-size:0.62rem;font-weight:700;">EXISTING</span>`;
+          ? `<span class="bchip" style="background:#dcfce7;color:#166534;">NEW</span>`
+          : `<span class="bchip" style="background:#fee2e2;color:#991b1b;">EXISTING</span>`;
 
         html += `
-          <div style="border:1px solid #e2e8f0;border-left:4px solid ${stripe};border-radius:5px;padding:7px 9px;background:${row.skip ? '#f8fafc' : '#fff'};opacity:${row.skip ? 0.5 : 1};">
+          <div class="brow" style="border-left:4px solid ${stripe};${row.skip ? 'opacity:.5;background:#f8fafc;' : ''}">
             <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px;flex-wrap:wrap;">
               <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
                 <input type="checkbox" ${row.skip ? "" : "checked"} onchange="batchToggleSkip(${idx}, this.checked)">
                 <span style="font-weight:700;color:#0f172a;font-size:0.76rem;">${escapeHtml(row.data.storeNumber || '#')}</span>
               </label>
-              ${tag}
-              ${batchGeoBadge(row)}
-              <span style="margin-left:auto;">${batchCoachSelect(row, idx)}</span>
+              ${tag}${batchGeoBadge(row)}
+              <span style="margin-left:auto;">${batchRelChips(row, idx)}</span>
             </div>
-            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:4px;">
-              ${BATCH_FIELDS.map(f => batchFieldCell(row, idx, f)).join("")}
-            </div>
+            <div class="bgrid">${BATCH_FIELDS.map(f => batchFieldCell(row, idx, f)).join("")}</div>
           </div>`;
       });
 
@@ -4789,68 +4881,66 @@
 
     function batchGeoBadge(row) {
       if (row.geo === "have")    return `<span title="Coordinates present" style="font-size:0.62rem;color:#166534;">🌐 GPS</span>`;
+      if (row.geo === "unchanged") return `<span title="Address unchanged - keeping existing coordinates, no lookup" style="font-size:0.62rem;color:#64748b;">🌐 unchanged</span>`;
       if (row.geo === "found")   return `<span title="Coordinates looked up" style="font-size:0.62rem;color:#166534;">🌐 found</span>`;
       if (row.geo === "failed")  return `<span title="Lookup failed - store will not show on the map" style="font-size:0.62rem;color:#b45309;">⚠ no GPS</span>`;
       if (row.geo === "looking") return `<span style="font-size:0.62rem;color:#64748b;">⏳ …</span>`;
       return `<span title="Will look up on import" style="font-size:0.62rem;color:#94a3b8;">🌐 pending</span>`;
     }
 
-    function batchCoachSelect(row, idx) {
-      const chips = row.coachIds.map(cid =>
-        `<span style="display:inline-flex;align-items:center;gap:2px;background:#e0e7ff;color:#3730a3;border-radius:8px;padding:0 4px;font-size:0.6rem;font-weight:600;">
-          ${escapeHtml(areaCoaches[cid] ? areaCoaches[cid].name : cid)}
-          <button onclick="batchRemoveCoach(${idx}, '${cid}')" title="Remove" style="background:none;border:none;color:inherit;cursor:pointer;font-weight:700;padding:0;">✕</button>
-        </span>`
-      ).join(" ");
+    // Chips for coaches + director + entity, marking anything that will be created.
+    function batchRelChips(row, idx) {
+      const chip = (kind, id, onRemove) => {
+        const isNew = isPendingNew(kind, id);
+        const cls = isNew ? "bchip bchip-new" : "bchip";
+        const tip = isNew ? ' title="Will be created on import"' : "";
+        const x = onRemove ? `<button onclick="${onRemove}" title="Remove">✕</button>` : "";
+        return `<span class="${cls}"${tip}>${isNew ? "+ " : ""}${escapeHtml(nameFor(kind, id))}${x}</span>`;
+      };
 
-      let opts = `<option value="">+ add coach…</option>`;
+      const coachChips = row.coachIds
+        .map(cid => chip("coaches", cid, `batchRemoveCoach(${idx}, '${cid}')`)).join(" ");
+
+      let opts = `<option value="">+ coach…</option>`;
       Object.values(areaCoaches || {}).forEach(c => {
-        if (row.coachIds.indexOf(c.id) === -1) {
-          opts += `<option value="${c.id}">${escapeHtml(c.name)}</option>`;
-        }
+        if (row.coachIds.indexOf(c.id) === -1) opts += `<option value="${c.id}">${escapeHtml(c.name)}</option>`;
       });
 
-      const warn = (row.coachUnmatched && row.coachUnmatched.length)
-        ? `<span title="No coach found with th${row.coachUnmatched.length === 1 ? 'is name' : 'ese names'} - pick from the list or add the coach first" style="color:#b45309;font-size:0.6rem;">⚠ ${escapeHtml(row.coachUnmatched.join(", "))} not found</span>`
-        : "";
+      const dirChip = row.directorId ? chip("directors", row.directorId, null) : "";
+      const entChip = row.entityId ? chip("entities", row.entityId, null) : "";
 
-      return `<span style="display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap;justify-content:flex-end;">
-        ${chips}${warn}
-        <select onchange="batchAddCoach(${idx}, this.value); this.value='';" style="font-size:0.62rem;padding:1px 2px;border:1px solid #cbd5e1;border-radius:3px;max-width:110px;">${opts}</select>
+      return `<span class="bchips">
+        ${entChip}${dirChip}${coachChips}
+        <select onchange="batchAddCoach(${idx}, this.value); this.value='';" class="bchip-sel">${opts}</select>
       </span>`;
     }
+
 
     function batchFieldCell(row, idx, field) {
       const state = batchFieldState(row, field.key);
       const val = batchNorm(row.data[field.key]);
       const oldVal = batchNorm(row.existing ? row.existing[field.key] : "");
 
-      let border = "#e2e8f0", bg = "#fff", labelColor = "#94a3b8";
-      if (state === "new")       { border = "#86efac"; bg = "#f0fdf4"; labelColor = "#166534"; }
-      if (state === "fill")      { border = "#86efac"; bg = "#f0fdf4"; labelColor = "#166534"; }
-      if (state === "overwrite") { border = "#fca5a5"; bg = "#fef2f2"; labelColor = "#991b1b"; }
+      const cls = (state === "new" || state === "fill") ? "bcell bcell-new"
+                : (state === "overwrite") ? "bcell bcell-ovr" : "bcell";
+      const lblColor = (state === "new" || state === "fill") ? "#166534"
+                     : (state === "overwrite") ? "#991b1b" : "#94a3b8";
 
-      // Only true overwrites get an opt-out checkbox.
       const applyBox = (state === "overwrite")
         ? `<input type="checkbox" ${row.overwrite[field.key] ? "checked" : ""} onchange="batchToggleField(${idx}, '${field.key}', this.checked)" title="Uncheck to keep the existing value" style="margin-left:auto;">`
         : "";
-
       const wasLine = (state === "overwrite")
-        ? `<div style="font-size:0.6rem;color:#b91c1c;text-decoration:line-through;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(oldVal)}">was: ${escapeHtml(oldVal)}</div>`
-        : "";
+        ? `<div class="bwas" title="${escapeHtml(oldVal)}">was: ${escapeHtml(oldVal)}</div>` : "";
 
-      return `
-        <div style="border:1px solid ${border};background:${bg};border-radius:4px;padding:3px 5px;">
+      return `<div class="${cls}">
           <div style="display:flex;align-items:center;gap:4px;">
-            <span style="font-size:0.58rem;font-weight:700;color:${labelColor};text-transform:uppercase;">${field.label}</span>
-            ${applyBox}
+            <span class="bcell-lbl" style="color:${lblColor};">${field.label}</span>${applyBox}
           </div>
-          <input type="text" value="${escapeHtml(val)}"
-                 oninput="batchEditField(${idx}, '${field.key}', this.value)"
-                 style="width:100%;border:none;background:transparent;font-size:0.7rem;color:#0f172a;padding:1px 0;outline:none;">
+          <input type="text" value="${escapeHtml(val)}" oninput="batchEditField(${idx}, '${field.key}', this.value)">
           ${wasLine}
         </div>`;
     }
+
 
     function batchToggleSkip(idx, include) {
       batchRows[idx].skip = !include;
@@ -4939,6 +5029,7 @@
     // lookup just leaves the row without GPS.
     async function batchGeocodeMissing(rows) {
       const need = rows.filter(r => !r.skip
+        && r.geo === "pending"
         && batchNorm(r.data.address)
         && !(batchNorm(r.data.latitude) && batchNorm(r.data.longitude)));
 
@@ -4998,6 +5089,23 @@
       const updates = {};
       const rootRef = db.ref("restaurants");
 
+      // Create any directors / coaches / entities the sheet referenced but that
+      // didn't exist yet, in the same write as the stores.
+      const createdCounts = { directors: 0, coaches: 0, entities: 0 };
+      const pathOf = { directors: "directors", coaches: "areaCoaches", entities: "entities" };
+      Object.keys(batchPending).forEach(kind => {
+        Object.values(batchPending[kind]).forEach(p => {
+          const rec = { id: p.id, name: p.name, email: "", phone: "" };
+          // A new coach inherits the director named on the same row.
+          if (kind === "coaches") {
+            const r = rows.find(rw => rw.coachIds.indexOf(p.id) !== -1 && rw.directorId);
+            rec.assignedDirectorId = r ? r.directorId : "";
+          }
+          updates[`${pathOf[kind]}/${p.id}`] = rec;
+          createdCounts[kind]++;
+        });
+      });
+
       rows.forEach(row => {
         const store = row.data;
         let targetId, finalStoreObj;
@@ -5019,15 +5127,14 @@
             finalStoreObj[key] = store[key];
           });
 
-          // Row-level coaches win; then the modal default; then what was there.
           let coachIds = row.coachIds.slice();
           if (coachIds.length === 0 && defaultCoachId) coachIds = [defaultCoachId];
           if (coachIds.length === 0) coachIds = getCoachIds(row.existing);
-          const built = coachAssignmentPayload(coachIds);
-          Object.assign(finalStoreObj, built.payload);
-          if (!built.payload.assignedDirectorId) {
-            finalStoreObj.assignedDirectorId = defaultDirId || row.existing.assignedDirectorId || "";
-          }
+          finalStoreObj.assignedAreaCoachIds = coachIds;
+          finalStoreObj.assignedAreaCoachId = coachIds[0] || "";
+          finalStoreObj.assignedDirectorId =
+            row.directorId || defaultDirId || row.existing.assignedDirectorId || "";
+          if (row.entityId) finalStoreObj.assignedEntityId = row.entityId;
         } else {
           targetId = rootRef.push().key;
           finalStoreObj = { ...store };
@@ -5036,20 +5143,22 @@
 
           let coachIds = row.coachIds.slice();
           if (coachIds.length === 0 && defaultCoachId) coachIds = [defaultCoachId];
-          const built = coachAssignmentPayload(coachIds);
-          Object.assign(finalStoreObj, built.payload);
-          if (!built.payload.assignedDirectorId) {
-            finalStoreObj.assignedDirectorId = defaultDirId || "";
-          }
+          finalStoreObj.assignedAreaCoachIds = coachIds;
+          finalStoreObj.assignedAreaCoachId = coachIds[0] || "";
+          finalStoreObj.assignedDirectorId = row.directorId || defaultDirId || "";
+          if (row.entityId) finalStoreObj.assignedEntityId = row.entityId;
         }
 
         delete finalStoreObj.areaCoachName;
+        delete finalStoreObj.directorName;
+        delete finalStoreObj.dbaName;
         updates[`restaurants/${targetId}`] = finalStoreObj;
       });
 
       const newCount = rows.filter(r => r.isNew).length;
       const updCount = rows.length - newCount;
-      const noGeo    = rows.filter(r => !batchNorm(r.data.latitude) || !batchNorm(r.data.longitude)).length;
+      const noGeoRows = rows.filter(r => !batchNorm(r.data.latitude) || !batchNorm(r.data.longitude));
+      const noGeo = noGeoRows.length;
 
       db.ref().update(updates, (err) => {
         importBtn.disabled = false;
@@ -5058,7 +5167,16 @@
           alert("Error importing records: " + err.message);
         } else {
           let msg = `Imported ${rows.length} stores - ${newCount} added, ${updCount} updated.`;
-          if (noGeo > 0) msg += `\n\n${noGeo} store${noGeo === 1 ? "" : "s"} still ha${noGeo === 1 ? "s" : "ve"} no coordinates and will not appear on the map. You can add them by editing the store.`;
+          const made = [];
+          if (createdCounts.directors) made.push(`${createdCounts.directors} director(s)`);
+          if (createdCounts.coaches)   made.push(`${createdCounts.coaches} coach(es)`);
+          if (createdCounts.entities)  made.push(`${createdCounts.entities} entity/entities`);
+          if (made.length) msg += `\nCreated ${made.join(", ")}.`;
+          if (noGeo > 0) {
+            msg += `\n\nNo GPS for ${noGeo} store${noGeo === 1 ? "" : "s"} (won't show on the map):\n`;
+            msg += noGeoRows.map(r => `  • ${r.data.storeNumber} ${r.data.storeName}`).join("\n");
+            msg += `\n\nThese are also flagged on the map filter as "No GPS".`;
+          }
           alert(msg);
           closeBatchImportModal();
         }
@@ -5236,6 +5354,128 @@
       performLockedAction(() => {
         trackChangeTimestamp(restId);
         db.ref(`restaurants/${restId}`).update(techAssignmentPayload(next));
+      });
+    }
+
+    // "McCann" + "#03630" + "Burger King #3630 McCann" -> "Burger King #3630 McCann"
+    // Brand is taken from the DBA text (everything before the "#"). Falls back to
+    // the bare name when there's no brand to be found.
+    function buildFullStoreName(rawName, storeNumber, dbaName) {
+      const name = (rawName || "").trim();
+      const dba  = (dbaName || "").trim();
+
+      // Digits only, no leading zeros - matches how the sheet writes it.
+      let num = (storeNumber || "").replace(/[^0-9]/g, "").replace(/^0+/, "");
+
+      let brand = "";
+      if (dba) {
+        const beforeHash = dba.split("#")[0].trim();
+        if (beforeHash) brand = beforeHash;
+      }
+
+      if (!brand) return name;                       // nothing to prefix with
+      if (!num)   return `${brand} ${name}`.trim();
+
+      // Already prefixed? leave it be.
+      if (name.toLowerCase().startsWith(brand.toLowerCase())) return name;
+
+      return `${brand} #${num} ${name}`.trim();
+    }
+
+    // ---- auto-creation of people/entities referenced by an import ----
+    // Names in the sheet that don't exist yet get created. Pending records are
+    // staged here so the preview can show "will be created" before anything is
+    // written, and so two rows naming the same person share one new record.
+
+    let batchPending = { directors: {}, coaches: {}, entities: {} };
+
+    function resetBatchPending() {
+      batchPending = { directors: {}, coaches: {}, entities: {} };
+    }
+
+    // Find an existing record by name (case/space-insensitive), else stage a new one.
+    function resolveOrStage(kind, rawName) {
+      const name = batchNorm(rawName);
+      if (!name) return "";
+      const key = name.toLowerCase();
+
+      const collection = kind === "directors" ? directors
+                       : kind === "coaches"   ? areaCoaches
+                       : entities;
+
+      const hit = Object.values(collection).find(
+        r => batchNorm(r.name).toLowerCase() === key
+      );
+      if (hit) return hit.id;
+
+      if (batchPending[kind][key]) return batchPending[kind][key].id;
+
+      const path = kind === "directors" ? "directors"
+                 : kind === "coaches"   ? "areaCoaches"
+                 : "entities";
+      const id = db.ref(path).push().key;
+      batchPending[kind][key] = { id, name, isNew: true };
+      return id;
+    }
+
+    function isPendingNew(kind, id) {
+      return Object.values(batchPending[kind]).some(p => p.id === id);
+    }
+
+    function pendingName(kind, id) {
+      const p = Object.values(batchPending[kind]).find(x => x.id === id);
+      return p ? p.name : "";
+    }
+
+    // Resolve a name to a display string whether it exists or is pending.
+    function nameFor(kind, id) {
+      const collection = kind === "directors" ? directors
+                       : kind === "coaches"   ? areaCoaches
+                       : entities;
+      if (collection[id]) return collection[id].name;
+      return pendingName(kind, id);
+    }
+
+    // Apply a Firebase-style flat update map ({"restaurants/abc": {...}}) to the
+    // in-memory collections so the UI can repaint before the network answers.
+    // A null value means delete, matching Firebase.
+    function applyUpdatesLocally(updates) {
+      const roots = { directors, areaCoaches, repairTechnicians, entities, restaurants };
+      Object.keys(updates).forEach(path => {
+        const val = updates[path];
+        const parts = path.split("/").filter(Boolean);
+        if (parts.length === 0) return;
+
+        const rootName = parts[0];
+        const root = roots[rootName];
+        if (!root) return;
+
+        if (parts.length === 1) {
+          // Whole-collection replace (seed//set).
+          if (val && typeof val === "object") {
+            Object.keys(root).forEach(k => delete root[k]);
+            Object.assign(root, val);
+          }
+          return;
+        }
+
+        const id = parts[1];
+        if (parts.length === 2) {
+          if (val === null) delete root[id];
+          else root[id] = val;
+          return;
+        }
+
+        // Field-level path, e.g. restaurants/abc/phone
+        if (!root[id]) root[id] = {};
+        let node = root[id];
+        for (let i = 2; i < parts.length - 1; i++) {
+          if (!node[parts[i]]) node[parts[i]] = {};
+          node = node[parts[i]];
+        }
+        const leaf = parts[parts.length - 1];
+        if (val === null) delete node[leaf];
+        else node[leaf] = val;
       });
     }
 
@@ -5424,6 +5664,18 @@
         `;
       });
       historyList.innerHTML = html;
+      syncHistoryFab(changes.length);
+    }
+
+    // Mirror the change count onto the mobile button.
+    function syncHistoryFab(count) {
+      const fabCount = document.getElementById("historyFabCount");
+      if (fabCount) fabCount.innerText = count > 0 ? String(count) : "";
+    }
+
+    function toggleHistoryTrayMobile() {
+      const tray = document.getElementById("historyTray");
+      if (tray) tray.classList.toggle("mobile-open");
     }
 
     function copyHistoryToClipboard() {
