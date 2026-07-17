@@ -1648,7 +1648,16 @@
     .dpm-pin svg { pointer-events: auto; }
     /* Reference overlay tiles (roads, labels, borders) knocked back so the
        colored store pins stand out against the satellite base. */
-    .dpm-ref-tiles { filter: saturate(0.55) contrast(0.9) brightness(0.92); }
+    /* Reference overlays (labels + roads) over satellite imagery.
+       Tuned to read like Google's satellite basemap: warm amber highways with
+       crisp white label halos, rather than the muted grey default.
+       - saturate>1 pushes Esri's ochre roads toward Google's amber
+       - contrast/brightness lift the labels off the dark imagery
+       Pins sit above these and carry their own white outline, so they stay
+       legible even with the overlays turned up. */
+    .dpm-ref-tiles { filter: saturate(1.45) contrast(1.18) brightness(1.12); }
+    /* Roads get a touch more warmth than the label layer. */
+    .dpm-road-tiles { filter: saturate(1.75) contrast(1.22) brightness(1.15) hue-rotate(-6deg); }
     /* Larger, easier-to-tap zoom buttons */
     .leaflet-touch .leaflet-bar a { width: 34px; height: 34px; line-height: 34px; font-size: 20px; }
     /* ==================================================================
@@ -6210,12 +6219,13 @@
         attribution: "Tiles &copy; Esri", maxZoom: 19, keepBuffer: 4, updateWhenIdle: false
       }).addTo(map);
       // Reference overlays: state/country borders, place names, highways & major roads.
-      // Toned down so colored store pins read clearly against them.
+      // Turned up (was 0.62 / 0.45) so highways and city labels read like the
+      // Google satellite basemap. Pins have white outlines and sit on top.
       L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", {
-        maxZoom: 19, opacity: 0.62, keepBuffer: 4, className: "dpm-ref-tiles"
+        maxZoom: 19, opacity: 0.95, keepBuffer: 4, className: "dpm-ref-tiles"
       }).addTo(map);
       L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}", {
-        maxZoom: 19, opacity: 0.45, keepBuffer: 4, className: "dpm-ref-tiles"
+        maxZoom: 19, opacity: 0.9, keepBuffer: 4, className: "dpm-road-tiles"
       }).addTo(map);
 
       // Make the zoom control finger-friendly.
