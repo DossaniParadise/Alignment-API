@@ -904,6 +904,10 @@
       border-color: #9d97e6;
     }
 
+    /* Flags a field whose value never leaves the edit dialog. */
+    .field-private { font-weight: 400; font-size: .65rem; color: #b45309; letter-spacing: .01em; }
+    .field-opt { font-weight: 400; font-size: .65rem; color: #94a3b8; }
+
     /* --- assignment pickers --- */
     .picker { display: flex; flex-direction: column; gap: 4px; }
     .picker-row { display: flex; align-items: center; gap: 5px; }
@@ -1951,6 +1955,21 @@
             <input type="text" id="inputStoreManager" placeholder="e.g. Robin Douglas">
           </div>
 
+          <div class="form-group" id="groupManagerCell" style="display: none;">
+            <label for="inputManagerCell">Store Manager Cell <span class="field-private">edit only &mdash; not shown on the card</span></label>
+            <input type="tel" id="inputManagerCell" placeholder="e.g. 254-555-0134" autocomplete="off">
+          </div>
+
+          <div class="form-group" id="groupAgm" style="display: none;">
+            <label for="inputAgm">Assistant GM <span class="field-opt">optional</span></label>
+            <input type="text" id="inputAgm" placeholder="e.g. Casey Alvarez">
+          </div>
+
+          <div class="form-group" id="groupAgmCell" style="display: none;">
+            <label for="inputAgmCell">Assistant GM Cell <span class="field-private">edit only &mdash; not shown on the card</span></label>
+            <input type="tel" id="inputAgmCell" placeholder="e.g. 254-555-0198" autocomplete="off">
+          </div>
+
           <div class="form-group" id="groupAddress" style="display: none;">
             <label for="inputAddress">Address</label>
             <input type="text" id="inputAddress" placeholder="e.g. 5401 Sun Valley Dr., Fort Worth, TX 76119">
@@ -2032,6 +2051,7 @@
               <li><strong>2. Compact GPS Format (7 columns):</strong><br><span style="color: #475569;">Store Name &bull; Address &bull; City &bull; State &bull; Zip &bull; Latitude &bull; Longitude</span></li>
               <li><strong>3. Classic Format (7-8 columns):</strong><br><span style="color: #475569;">[Entity] &bull; Store Name &bull; Store Manager &bull; Address &bull; City &bull; State &bull; Zip &bull; Phone</span></li>
             </ul>
+            <div style="margin-top: 4px;">With a header row, these are matched by name too: <span style="color: #475569;">Store # &bull; DBA Name &bull; Director &bull; Area Coach &bull; Manager Cell &bull; AGM &bull; AGM Cell</span></div>
           </div>
           <textarea id="batchTextArea" rows="7" style="width: 100%; padding: 10px; font-family: monospace; font-size: 0.8rem; border: 1px solid #cbd5e1; border-radius: 4px; resize: vertical;" placeholder="Buddy's Enterprises Inc.	Paradise Quick Stop #02	Kabir Bodhani	521 E. Hwy 121	Lewisville	TX	75057	(972) 219-0096	32.9906715	-96.97804" oninput="previewBatchInput()"></textarea>
         </div>
@@ -3173,7 +3193,8 @@
           
           const storeName = (rest.storeName || "").toLowerCase();
           const storeNumber = (rest.storeNumber || "").toLowerCase();
-          const manager = (rest.storeManager || "").toLowerCase();
+          // Names are searchable; cell numbers deliberately are not.
+          const manager = ((rest.storeManager || "") + " " + (rest.assistantManager || "")).toLowerCase();
           const address = (rest.address || "").toLowerCase();
           const entity = (rest.entity || "").toLowerCase();
           const lat = (rest.latitude || "").toLowerCase();
@@ -3321,6 +3342,11 @@
                 <div class="card-detail" style="font-weight: 600; color: #334155; display: flex; justify-content: space-between; align-items: center; width: 100%;">
                   <span>👤 Mgr: ${escapeHtml(rest.storeManager)}</span>
                   <button class="copy-btn-mini" onclick="copyTextToClipboard(this.getAttribute('data-text'), this)" data-text="${escapeHtml(rest.storeManager)}">📋 Copy</button>
+                </div>` : ''}
+              ${rest.assistantManager ? `
+                <div class="card-detail" style="font-weight: 600; color: #334155; display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                  <span>👤 AGM: ${escapeHtml(rest.assistantManager)}</span>
+                  <button class="copy-btn-mini" onclick="copyTextToClipboard(this.getAttribute('data-text'), this)" data-text="${escapeHtml(rest.assistantManager)}">📋 Copy</button>
                 </div>` : ''}
               <div class="card-detail" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                 <span style="overflow: hidden; text-overflow: ellipsis;">📍 Address: ${escapeHtml(rest.address || 'No address')}</span>
@@ -3827,6 +3853,9 @@
           document.getElementById("inputStoreNumber").value = item.storeNumber || "";
           document.getElementById("inputStoreName").value = item.storeName || "";
           document.getElementById("inputStoreManager").value = item.storeManager || "";
+          document.getElementById("inputManagerCell").value = formatPhoneNumber(item.managerCell) || "";
+          document.getElementById("inputAgm").value = item.assistantManager || "";
+          document.getElementById("inputAgmCell").value = formatPhoneNumber(item.assistantManagerCell) || "";
           document.getElementById("inputAddress").value = item.address || "";
           
           // Safe check for the entity dropdown in case it doesn't exist in the HTML yet
@@ -3859,20 +3888,21 @@
       document.getElementById("crudModal").classList.remove("active");
     }
 
+    // Groups shown only for stores. Cell numbers live here and nowhere else -
+    // they are deliberately never rendered on the card.
+    const STORE_ONLY_GROUPS = ["groupStoreNo", "groupStoreName", "groupStoreManager",
+      "groupManagerCell", "groupAgm", "groupAgmCell", "groupAddress", "groupEntity",
+      "groupLatitude", "groupLongitude", "groupAssignedCoach", "groupAssignedTech"];
+
     function setupFormFields(type) {
-      // Toggle inputs
-      document.getElementById("groupName").style.display = type !== "restaurant" ? "block" : "none";
-      document.getElementById("groupStoreNo").style.display = type === "restaurant" ? "block" : "none";
-      document.getElementById("groupStoreName").style.display = type === "restaurant" ? "block" : "none";
-      document.getElementById("groupStoreManager").style.display = type === "restaurant" ? "block" : "none";
-      document.getElementById("groupAddress").style.display = type === "restaurant" ? "block" : "none";
-      document.getElementById("groupEntity").style.display = type === "restaurant" ? "block" : "none";
-      document.getElementById("groupLatitude").style.display = type === "restaurant" ? "block" : "none";
-      document.getElementById("groupLongitude").style.display = type === "restaurant" ? "block" : "none";
-      
-      document.getElementById("groupAssignedDirector").style.display = type === "coach" || type === "restaurant" ? "block" : "none";
-      document.getElementById("groupAssignedCoach").style.display = type === "restaurant" ? "block" : "none";
-      document.getElementById("groupAssignedTech").style.display = type === "restaurant" ? "block" : "none";
+      const isStore = type === "restaurant";
+      const show = (id, on) => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = on ? "block" : "none";
+      };
+      STORE_ONLY_GROUPS.forEach(id => show(id, isStore));
+      show("groupName", !isStore);
+      show("groupAssignedDirector", type === "coach" || isStore);
     }
 
     // Dynamic select inputs helpers
@@ -4059,6 +4089,9 @@
           storeNumber: formatStoreNumberDigits(document.getElementById("inputStoreNumber").value) || '#',
           storeName: document.getElementById("inputStoreName").value,
           storeManager: document.getElementById("inputStoreManager").value,
+          managerCell: formatPhoneNumber(document.getElementById("inputManagerCell").value),
+          assistantManager: document.getElementById("inputAgm").value.trim(),
+          assistantManagerCell: formatPhoneNumber(document.getElementById("inputAgmCell").value),
           address: document.getElementById("inputAddress").value,
           entity: selectedEntityName,
           assignedEntityId: selectedEntityIdInput,
@@ -4268,6 +4301,9 @@
           headerIndices = {
             storeName: -1,
             storeManager: -1,
+            managerCell: -1,
+            agm: -1,
+            agmCell: -1,
             address: -1,
             city: -1,
             state: -1,
@@ -4292,6 +4328,12 @@
               headerIndices.dba = colIdx;
             } else if (val.includes('store name') || val.includes('storename') || val === 'store') {
               headerIndices.storeName = colIdx;
+            } else if (val.includes('agm cell') || val.includes('assistant gm cell') || val.includes('assistant manager cell')) {
+              headerIndices.agmCell = colIdx;
+            } else if (val.includes('agm') || val.includes('assistant gm') || val.includes('assistant manager')) {
+              headerIndices.agm = colIdx;
+            } else if (val.includes('manager cell') || val.includes('gm cell') || val.includes('manager mobile')) {
+              headerIndices.managerCell = colIdx;
             } else if (val.includes('manager') || val.includes('store manager')) {
               headerIndices.storeManager = colIdx;
             } else if (val === 'address' || val.includes('street')) {
@@ -4320,6 +4362,7 @@
         // Assign fields based on index map, fallback to standard order if no header mapped
         let rawStoreName = '';
         let storeManager = '';
+        let managerCell = '', agm = '', agmCell = '';
         let rawAddress = '';
         let city = '';
         let state = '';
@@ -4336,6 +4379,9 @@
         if (headerIndices) {
           if (headerIndices.storeName !== -1) rawStoreName = columns[headerIndices.storeName] || '';
           if (headerIndices.storeManager !== -1) storeManager = columns[headerIndices.storeManager] || '';
+          if (headerIndices.managerCell !== -1) managerCell = columns[headerIndices.managerCell] || '';
+          if (headerIndices.agm !== -1) agm = columns[headerIndices.agm] || '';
+          if (headerIndices.agmCell !== -1) agmCell = columns[headerIndices.agmCell] || '';
           if (headerIndices.address !== -1) rawAddress = columns[headerIndices.address] || '';
           if (headerIndices.city !== -1) city = columns[headerIndices.city] || '';
           if (headerIndices.state !== -1) state = columns[headerIndices.state] || '';
@@ -4496,6 +4542,9 @@
           storeNumber: storeNumber || '#',
           storeName: fullStoreName || 'Unknown Restaurant',
           storeManager,
+          managerCell: formatPhoneNumber(managerCell),
+          assistantManager: (agm || '').trim(),
+          assistantManagerCell: formatPhoneNumber(agmCell),
           address: combinedAddress,
           phone: formatPhoneNumber(phone),
           entity: entity,
@@ -4521,6 +4570,9 @@
       { key: "address",      label: "Address"},
       { key: "phone",        label: "Phone"  },
       { key: "storeManager", label: "Mgr"    },
+      { key: "managerCell",  label: "Mgr Cell" },
+      { key: "assistantManager",     label: "AGM" },
+      { key: "assistantManagerCell", label: "AGM Cell" },
       { key: "latitude",     label: "Lat"    },
       { key: "longitude",    label: "Lng"    }
     ];
