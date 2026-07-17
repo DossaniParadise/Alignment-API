@@ -2113,13 +2113,8 @@
       }
     }
 
-    // Load data immediately on startup
-    loadDashboardData();
-    mShow("store");   // default mobile view; harmless on desktop
 
-    // ==========================================
     // 2. STATE DATA CACHE & SELECTION MODEL
-    // ==========================================
     let directors = {};
     let areaCoaches = {};
     let restaurants = {};
@@ -2142,10 +2137,7 @@
     // EDITING PASSWORD: Set your desired password between the quotes below.
     const EDIT_PASSWORD = "dpm6";
 
-// ==========================================
-    // VIRTUAL DATABASE ROUTER 
-    // Intercepts legacy Firebase commands and securely routes them to Vercel
-    // ==========================================
+    // Virtual DB router: intercepts legacy Firebase calls, routes them to Vercel.
     const db = {
       ref: function(path = "") {
         const cleanPath = path.startsWith('/') ? path.substring(1) : path;
@@ -2396,9 +2388,7 @@
       didMigrateEntities = true;
     }
 
-    // ==========================================
     // 4. RENDERING ROUTINES FOR THE 3 VIEWS
-    // ==========================================
     function renderAll() {
       renderDirectors();
       renderTechnicians();
@@ -2769,25 +2759,15 @@
 
     // Render entities column (bottom half of Column 2)
 
-    // Normalize an entity name for duplicate/variant detection: collapse all
-    // runs of whitespace to a single space, trim, and lowercase. Two names
-    // that differ ONLY by spacing or case share a normalized form and are
-    // treated as the same real-world entity for flagging purposes.
+    // Normalize for variant detection: collapse whitespace, trim, lowercase.
+    // Names differing only by spacing/case share a form and are flagged as one.
     function __normEntityName(name) {
       return (name || "").replace(/\s+/g, " ").trim().toLowerCase();
     }
 
-    // Build a report of entity-name variants across BOTH structured entity
-    // records and raw restaurant.entity text, so duplicates can be found and
-    // cleaned. Returns:
-    //   byNorm: normalizedName -> {
-    //     records: [entId,...],           // structured entities matching
-    //     rawTexts: Set(originalText),    // distinct raw spellings seen
-    //     restaurants: [restId,...]       // restaurants using any variant
-    //   }
-    // Any normalized name with more than one distinct original spelling, or
-    // with both a structured record and unmatched raw text, is a "variant
-    // cluster" worth cleaning.
+    // Report entity-name variants across entity records + raw restaurant.entity text.
+    // Returns byNorm: normName -> {records:[entId], rawTexts:Set, restaurants:[restId]}.
+    // >1 spelling, or a record plus unmatched raw text, means a cluster worth cleaning.
     function __buildEntityVariantReport() {
       const byNorm = {};
       const ensure = (norm) => (byNorm[norm] || (byNorm[norm] = {
@@ -3342,9 +3322,7 @@
       });
     }
 
-    // ==========================================
     // 5. DRAG AND DROP HANDLERS (NATIVE HTML5)
-    // ==========================================
     let draggedElementData = null;
 
     function handleDragStart(e) {
@@ -3568,9 +3546,7 @@
       }
     }
 
-    // ==========================================
     // 6. SELECTION FILTERS ACTIONS
-    // ==========================================
     function selectDirector(id) {
       if (selectedDirectorId === id) {
         // Toggle selection
@@ -3701,9 +3677,7 @@
       renderAll();
     }
 
-    // ==========================================
     // 6.2 SEARCH AND SORT HANDLERS (DYNAMIC ACTION LISTENERS)
-    // ==========================================
     function changeCoachSort(val) {
       coachSortMode = val;
       renderCoaches();
@@ -3740,9 +3714,7 @@
       renderRestaurants();
     }
 
-    // ==========================================
     // 7. CRUD MODAL OPERATIONS
-    // ==========================================
     function openCreateModal(type) {
       performLockedAction(() => {
         document.getElementById("crudForm").reset();
@@ -3874,10 +3846,8 @@
       if (selectEntity) selectEntity.value = prevEntity;
     }
 
-    // ---- assignment pickers (edit dialog) ----
-    // One dropdown per assigned person. Most stores have exactly one, so the
-    // common case looks like a plain <select>; "+ Add another" appears only when
-    // a second is actually needed. Generic over coaches and techs.
+    // Assignment pickers: one dropdown per person, "+ Add another" only when needed.
+    // Most stores have a single coach, so the common case reads as a plain <select>.
 
     const PICKERS = {
       coach: { box: "coachPicker", src: () => areaCoaches, label: "area coach", onChange: () => onCoachPickChange() },
@@ -4121,9 +4091,7 @@
       });
     }
 
-    // ==========================================
     // 8. BATCH RESTAURANTS IMPORT OPERATIONS
-    // ==========================================
     let currentParsedStores = [];
 
     function openBatchImportModal() {
@@ -4463,10 +4431,8 @@
         
         const combinedAddress = addressParts.join(', ');
         
-        // Build the display name as "<Brand> #<Number> <Name>", e.g.
-        // "Burger King #3630 McCann". The brand comes from the DBA column when
-        // present (that's the only place it appears in the sheet); if the plain
-        // name already carries the brand, it's left alone.
+        // Name as "<Brand> #<Number> <Name>" (e.g. Burger King #3630 McCann);
+        // brand comes from the DBA column, skipped if the name already has it.
         const fullStoreName = buildFullStoreName(rawStoreName, storeNumber, dbaName);
 
         results.push({
@@ -4489,9 +4455,7 @@
       return results;
     }
 
-    // ------------------------------------------------------------------
     // BATCH IMPORT: diff preview + inline editing + geocoding
-    // ------------------------------------------------------------------
 
     // Fields we diff/edit, in display order.
     const BATCH_FIELDS = [
@@ -4995,9 +4959,7 @@
       });
     }
 
-    // ==========================================
     // 9. DATABASE SEED DATA UTILITY FUNCTION
-    // ==========================================
     function seedDatabase() {
       if (!confirm("This will clean and prepopulate database structure with standard demo entries. Continue?")) {
         return;
@@ -5035,19 +4997,9 @@
       });
     }
 
-    // ==========================================
-    // 10. STRING & CHARACTER UTILITIES
-    // ==========================================
-    // ==========================================
-    // MULTI-ASSIGNMENT HELPERS (coaches + techs)
-    // ------------------------------------------
-    // A store may have several area coaches and several repair techs.
-    // Canonical storage is an array: assignedAreaCoachIds / assignedRepairTechnicianIds.
-    // The legacy single-value fields (assignedAreaCoachId /
-    // assignedRepairTechnicianId) are still read so existing records keep
-    // working, and are still written alongside the array so that anything
-    // not yet migrated (or an older cached tab) keeps functioning.
-    // ==========================================
+    // 10. STRING UTILITIES + MULTI-ASSIGNMENT HELPERS (coaches, techs)
+    // Canonical storage is an array (assignedAreaCoachIds / assignedRepairTechnicianIds);
+    // legacy single-value fields are still read and mirrored on write for compatibility.
 
     // Read coach ids off a store, tolerating legacy single-value data.
     function getCoachIds(rest) {
@@ -5194,10 +5146,8 @@
       return `${brand} #${num} ${name}`.trim();
     }
 
-    // ---- auto-creation of people/entities referenced by an import ----
-    // Names in the sheet that don't exist yet get created. Pending records are
-    // staged here so the preview can show "will be created" before anything is
-    // written, and so two rows naming the same person share one new record.
+    // Auto-create people/entities named in an import. Staged as "pending" so the
+    // preview can show them before any write, and repeat names share one record.
 
     let batchPending = { directors: {}, coaches: {}, entities: {} };
 
@@ -5291,10 +5241,8 @@
       });
     }
 
-    // ---- mobile tab shell ----
-    // Shows exactly one panel at a time. Each tab maps to a data-panel (inside
-    // column a/b) or the whole stores column. No-op on desktop, where CSS keeps
-    // every column visible regardless of these classes.
+    // Mobile tab shell: one panel at a time. Each tab maps to a data-panel in
+    // column a/b, or the whole stores column. No-op on desktop.
     const M_TABS = {
       director:   { col: "a", panel: "director"   },
       technician: { col: "a", panel: "technician" },
@@ -5409,9 +5357,7 @@
       return phoneStr;
     }
 
-    // ==========================================
     // 11. DYNAMIC SESSION HISTORY CHANGE LOG
-    // ==========================================
     let historyTrayExpanded = false;
     function toggleHistoryTray() {
       const tray = document.getElementById("historyTray");
@@ -5645,10 +5591,8 @@
         }
         const norm = __normEntityName(raw);
         if (!norm) return null;
-        // Key by NORMALIZED name so every spelling/spacing/case variant of the
-        // same entity groups together — clicking the filter shows all its
-        // stores. The label flags when multiple spellings feed one group so
-        // the fragmentation is still visible on the map for cleanup.
+        // Key by normalized name so spelling variants group together; the label
+        // flags multi-spelling groups so fragmentation stays visible.
         const label = __mapEntityLabelFor(norm, raw.trim());
         return { key: "entnorm:" + norm, label: label };
       }
@@ -5738,10 +5682,8 @@
              document.body.classList.contains("map-kiosk-active");
     }
 
-    // Smoothly fit the map to a set of markers. Falls back to all pins when
-    // the passed list is empty. A firm zoom cap keeps the filtered group in
-    // its wider context so you can see how it sits amongst everything else,
-    // rather than diving all the way in on tightly-clustered pins.
+    // Fit map to markers (falls back to all pins). Zoom cap keeps the group in
+    // context rather than diving into tight clusters.
     const __MAP_FILTER_MAX_ZOOM = 11; // regional/metro level — never closer
 
     // User toggle: when off, filtering only dims pins and the map stays put
@@ -5758,11 +5700,8 @@
       }
     };
 
-    // Measure how much of the map canvas each side rail is covering right now,
-    // so we can pad the fit and center the group in the VISIBLE gap between
-    // the rails instead of behind them. Returns padding in pixels for each
-    // edge. On the mobile drawer layout the rails slide off-canvas, so they
-    // contribute no padding.
+    // Per-edge padding (px) for however much each rail covers the map, so fits
+    // center in the visible gap. Mobile rails slide off-canvas: no padding.
     function __mapRailPadding() {
       const base = 40; // breathing room on every edge
       let left = base, right = base;
@@ -6175,6 +6114,12 @@
     window.__onViewToggle = function (checkbox) {
       __toggleMapView(checkbox.checked);
     };
+
+    // ---- startup ----
+    // Must run last: const/let above are not hoisted, so calling these earlier
+    // hits the temporal dead zone and kills the whole script.
+    mShow("store");
+    loadDashboardData();
 
   </script>
 
