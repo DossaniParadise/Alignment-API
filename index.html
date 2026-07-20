@@ -2286,6 +2286,48 @@
     let isEditingLocked = true;
     let pendingLockAction = null;
 
+    // Stores belonging to a coach (any of their multi-coach assignments).
+    function storesForCoach(coachId) {
+      return Object.keys(restaurants).filter(id => storeHasCoach(restaurants[id], coachId));
+    }
+    // Stores under a director: their direct reports plus everything under their coaches.
+    function storesForDirector(directorId) {
+      return Object.keys(restaurants).filter(id => restaurants[id].assignedDirectorId === directorId);
+    }
+
+    // Bulk-add a tech to a set of stores, skipping any that already have them.
+    function bulkAddTechToStores(storeIds, techId) {
+      const updates = {};
+      storeIds.forEach(id => {
+        const ids = getTechIds(restaurants[id]);
+        if (ids.indexOf(techId) === -1) {
+          trackChangeTimestamp(id);
+          Object.assign(updates, prefixUpdate(id, techAssignmentPayload(ids.concat([techId]))));
+        }
+      });
+      if (Object.keys(updates).length) db.ref().update(updates);
+    }
+
+    // Bulk-add a coach to a set of stores (used by director -> coach).
+    function bulkAddCoachToStores(storeIds, coachId) {
+      const updates = {};
+      storeIds.forEach(id => {
+        const ids = getCoachIds(restaurants[id]);
+        if (ids.indexOf(coachId) === -1) {
+          trackChangeTimestamp(id);
+          Object.assign(updates, prefixUpdate(id, coachAssignmentPayload(ids.concat([coachId])).payload));
+        }
+      });
+      if (Object.keys(updates).length) db.ref().update(updates);
+    }
+
+    // Turn {field:val} into {"restaurants/<id>/field":val} for a batched update.
+    function prefixUpdate(restId, payload) {
+      const out = {};
+      Object.keys(payload).forEach(k => { out[`restaurants/${restId}/${k}`] = payload[k]; });
+      return out;
+    }
+
     function performLockedAction(actionCallback) {
       if (!isEditingLocked) {
         actionCallback();
@@ -2733,9 +2775,12 @@
         card.className = `card ${isSelected ? 'selected' : ''}`;
         card.setAttribute("data-id", dirId);
         card.setAttribute("data-type", "director");
-        
+        card.setAttribute("draggable", "true");
+
         // Click toggles inline expansion and active filtering
         card.addEventListener("click", () => toggleDirectorExpand(dirId));
+        card.addEventListener("dragstart", handleDragStart);
+        card.addEventListener("dragend", handleDragEnd);
         card.addEventListener("dragover", handleDragOverCard);
         card.addEventListener("dragleave", handleDragLeaveCard);
         card.addEventListener("drop", handleDropOnDirectorCard);
@@ -3432,12 +3477,15 @@
       
       if (!draggedElementData) return;
 
-      // Filter drops that make logical sense:
-      // 1. Coach can only drop on Director
-      if (draggedElementData.type === 'coach' && targetType === 'director') {
+      // Coach can drop on Director (reassign) or Tech (bulk-assign their stores).
+      if (draggedElementData.type === 'coach' && (targetType === 'director' || targetType === 'technician')) {
         e.currentTarget.classList.add("drag-hover-target");
       }
-      // 2. Restaurant can drop on Director, Coach, Technician, or Entity
+      // Director can drop on Tech or Coach to cascade their stores.
+      if (draggedElementData.type === 'director' && (targetType === 'technician' || targetType === 'coach')) {
+        e.currentTarget.classList.add("drag-hover-target");
+      }
+      // Restaurant can drop on Director, Coach, Technician, or Entity
       if (draggedElementData.type === 'restaurant' && (targetType === 'director' || targetType === 'coach' || targetType === 'technician' || targetType === 'entity')) {
         e.currentTarget.classList.add("drag-hover-target");
       }
@@ -3512,10 +3560,33 @@
           trackChangeTimestamp(elemId);
           db.ref(`restaurants/${elemId}`).update(built.payload);
         });
+        return;
+      }
+
+      // Director dropped on a coach: add this coach to all the director's stores.
+      if (elemType === "director" && coach) {
+        const storeIds = storesForDirector(elemId);
+        const dirName = directors[elemId] && directors[elemId].name;
+        confirmBulkAssign(storeIds, dirName, coach.name, "area coach",
+          () => performLockedAction(() => bulkAddCoachToStores(storeIds, targetCoachId)));
       }
     }
 
-    // DROP: Restaurant dropped on a Technician card
+    // Confirm before a drag that touches 2+ stores. Single-store drags skip
+    // this entirely. Zero stores tells the user there's nothing to do.
+    function confirmBulkAssign(storeIds, sourceName, targetName, targetRole, onConfirm) {
+      const n = storeIds.length;
+      if (n === 0) {
+        alert(`${sourceName || "That"} has no stores to assign.`);
+        return;
+      }
+      if (n === 1) { onConfirm(); return; }   // single store: no confirmation
+
+      const msg = `Assign ${n} store${n === 1 ? "" : "s"} from ${sourceName || "this source"} to ${targetName} (${targetRole})?`;
+      if (confirm(msg)) onConfirm();
+    }
+
+    // DROP: Restaurant / Coach / Director dropped on a Technician card
     function handleDropOnTechnicianCard(e) {
       e.preventDefault();
       e.stopPropagation();
@@ -3523,18 +3594,29 @@
 
       if (!draggedElementData) return;
       const targetTechnicianId = e.currentTarget.getAttribute("data-id");
+      const tech = repairTechnicians[targetTechnicianId];
+      if (!tech) return;
       const elemId = draggedElementData.id;
       const elemType = draggedElementData.type;
 
       if (elemType === "restaurant") {
-        const rest = restaurants[elemId];
-        const current = getTechIds(rest);
-        if (current.indexOf(targetTechnicianId) !== -1) return; // already assigned
-        const next = current.concat([targetTechnicianId]);
+        const current = getTechIds(restaurants[elemId]);
+        if (current.indexOf(targetTechnicianId) !== -1) return;
         performLockedAction(() => {
           trackChangeTimestamp(elemId);
-          db.ref(`restaurants/${elemId}`).update(techAssignmentPayload(next));
+          db.ref(`restaurants/${elemId}`).update(techAssignmentPayload(current.concat([targetTechnicianId])));
         });
+        return;
+      }
+
+      // Bulk cascades: assign a whole coach's or director's stores to this tech.
+      if (elemType === "coach" || elemType === "director") {
+        const storeIds = elemType === "coach" ? storesForCoach(elemId) : storesForDirector(elemId);
+        const srcName = elemType === "coach"
+          ? (areaCoaches[elemId] && areaCoaches[elemId].name)
+          : (directors[elemId] && directors[elemId].name);
+        confirmBulkAssign(storeIds, srcName, tech.name, "repair tech",
+          () => performLockedAction(() => bulkAddTechToStores(storeIds, targetTechnicianId)));
       }
     }
 
