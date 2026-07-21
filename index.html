@@ -1628,7 +1628,7 @@
   <header>
     <div class="header-logo">
       <h1>Dossani Unified Directory and Alignment</h1>
-      <span>v3.7 Vercel API</span>
+      <span>v3.8 Vercel API</span>
     </div>
     
     <div class="header-actions">
@@ -2150,16 +2150,13 @@
       let data;
 
       // --- network phase: only real fetch failures touch the badge ---
-      // cache:"no-store" + a cache-busting query param defeats the browser and
-      // any CDN/proxy in front of Vercel. Without this, the post-write reconcile
-      // could fetch a STALE cached copy and overwrite the edit that just saved -
-      // making changes flash and vanish.
+      // Cache-busting query param defeats browser/CDN caching without adding a
+      // Cache-Control HEADER - that header triggers a CORS preflight the API
+      // doesn't allow, which blanks the app. The ?_=timestamp is enough on its
+      // own and is a "simple request" needing no preflight.
       try {
         const bust = (API_BASE_URL.includes("?") ? "&" : "?") + "_=" + Date.now();
-        const response = await fetch(API_BASE_URL + bust, {
-          cache: "no-store",
-          headers: { "Cache-Control": "no-cache" }
-        });
+        const response = await fetch(API_BASE_URL + bust, { cache: "no-store" });
         if (!response.ok) throw new Error(`API Error: ${response.status}`);
         data = await response.json();
       } catch (error) {
