@@ -1628,7 +1628,7 @@
   <header>
     <div class="header-logo">
       <h1>Dossani Unified Directory and Alignment</h1>
-      <span>v3.6 Vercel API</span>
+      <span>v3.7 Vercel API</span>
     </div>
     
     <div class="header-actions">
@@ -2150,8 +2150,16 @@
       let data;
 
       // --- network phase: only real fetch failures touch the badge ---
+      // cache:"no-store" + a cache-busting query param defeats the browser and
+      // any CDN/proxy in front of Vercel. Without this, the post-write reconcile
+      // could fetch a STALE cached copy and overwrite the edit that just saved -
+      // making changes flash and vanish.
       try {
-        const response = await fetch(API_BASE_URL);
+        const bust = (API_BASE_URL.includes("?") ? "&" : "?") + "_=" + Date.now();
+        const response = await fetch(API_BASE_URL + bust, {
+          cache: "no-store",
+          headers: { "Cache-Control": "no-cache" }
+        });
         if (!response.ok) throw new Error(`API Error: ${response.status}`);
         data = await response.json();
       } catch (error) {
@@ -2238,12 +2246,15 @@
               throw new Error(errData.error || "API Write Error");
             }
 
-            // Background reconcile - no await on the render path.
-            loadDashboardData({ silent: true });
+            // Success: the optimistic local write is already correct and on the
+            // server. Do NOT re-fetch here - a reconcile that races or hits a
+            // stale cache would overwrite the very edit we just made. We only
+            // pull fresh data on ERROR (below) to recover.
             if (callback) callback(null);
           } catch (err) {
             console.error(err);
-            // Local state may now be ahead of the server; pull the truth back.
+            // The write failed, so local state may be ahead of the server.
+            // Pull the truth back (fresh, cache-busted) to stay consistent.
             loadDashboardData({ silent: true });
             if (callback) callback(err);
           }
