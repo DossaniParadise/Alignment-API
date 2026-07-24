@@ -908,6 +908,30 @@
     .field-private { font-weight: 400; font-size: .65rem; color: #b45309; letter-spacing: .01em; }
     .field-opt { font-weight: 400; font-size: .65rem; color: #94a3b8; }
 
+    /* --- view gate: covers the app until the access code is entered --- */
+    .view-gate {
+      position: fixed; inset: 0; z-index: 100000;
+      display: flex; align-items: center; justify-content: center;
+      background: linear-gradient(160deg, var(--navy-700, #251d7f), #0f172a);
+      padding: 20px;
+    }
+    .view-gate.hidden { display: none; }
+    .view-gate-box {
+      background: #fff; border-radius: 12px; padding: 28px 26px;
+      width: 100%; max-width: 340px; text-align: center;
+      box-shadow: 0 18px 50px rgba(0,0,0,.35);
+    }
+    .view-gate-logo { font-size: 1.05rem; font-weight: 800; color: var(--navy-700, #251d7f); letter-spacing: -.01em; }
+    .view-gate-sub { font-size: .8rem; color: #64748b; margin: 6px 0 16px; }
+    .view-gate-box input {
+      width: 100%; box-sizing: border-box; padding: 10px 12px; font-size: 1rem;
+      text-align: center; letter-spacing: .28em;
+      border: 1px solid #cbd5e1; border-radius: 6px; margin-bottom: 10px;
+    }
+    .view-gate-box input:focus { outline: none; border-color: var(--navy-700, #251d7f); }
+    .view-gate-box .btn { width: 100%; justify-content: center; padding: 9px; }
+    .view-gate-error { color: #dc2626; font-size: .75rem; line-height: 1.35; min-height: 32px; margin-bottom: 6px; }
+
     /* --- assignment pickers --- */
     .picker { display: flex; flex-direction: column; gap: 4px; }
     .picker-row { display: flex; align-items: center; gap: 5px; }
@@ -1622,13 +1646,30 @@
 </head>
 <body>
 
+  <!-- View gate. Covers the whole app until the view password is entered.
+       This is a client-side gate for casual access control, not a security
+       boundary - it keeps the directory private from people who wander to the
+       URL, but anyone who views source can read the code. Real protection would
+       need server-side auth on the API. -->
+  <div id="viewGate" class="view-gate">
+    <div class="view-gate-box">
+      <div class="view-gate-logo">Dossani Unified Directory</div>
+      <p class="view-gate-sub">Contact IT Support for access.</p>
+      <input type="password" id="viewGateInput" inputmode="numeric" autocomplete="off"
+             placeholder="Access code" onkeydown="if(event.key==='Enter'){event.preventDefault();submitViewGate();}">
+      <div id="viewGateError" class="view-gate-error"></div>
+      <button type="button" class="btn btn-primary" onclick="submitViewGate()">View Directory</button>
+    </div>
+  </div>
+
+
   <!-- ==================================================================== -->
   <!-- HEADER BAR                                                           -->
   <!-- ==================================================================== -->
   <header>
     <div class="header-logo">
       <h1>Dossani Unified Directory and Alignment</h1>
-      <span>v3.8 Vercel API</span>
+      <span>v4.0 Vercel API</span>
     </div>
     
     <div class="header-actions">
@@ -1706,19 +1747,19 @@
       </div>
     </section>
 
-    <!-- MIDDLE COLUMN - AREA COACHES & ENTITIES -->
+    <!-- MIDDLE COLUMN - DISTRICT MANAGERS & ENTITIES -->
     <section class="column" data-col="b" style="display: flex; flex-direction: column;">
-      <!-- Area Coaches (Top Half) -->
+      <!-- District Managers (Top Half) -->
       <div class="m-panel" data-panel="coach" style="flex: 1; display: flex; flex-direction: column; overflow: hidden; border-bottom: 2px solid var(--neutral-border);">
         <div class="column-header m-panel-head">
           <div class="column-title">
-            Area Coaches
+            District Managers
             <span class="column-counter" id="coachCount">0</span>
           </div>
           <button class="btn btn-primary btn-xs" onclick="openCreateModal('coach')">+ Add</button>
         </div>
 
-        <!-- Area Coach sorting options -->
+        <!-- District Manager sorting options -->
         <div class="column-action-bar">
           <span style="font-size: 0.72rem; color: #64748b; font-weight: 500;">Sort:</span>
           <select class="control-select" id="coachSortSelect" onchange="changeCoachSort(this.value)" style="flex: 1; max-width: 140px;">
@@ -1728,14 +1769,14 @@
           </select>
         </div>
 
-        <!-- Scoped Area Coach filter bar -->
+        <!-- Scoped District Manager filter bar -->
         <div id="coachFilterBar" class="filter-message-bar" style="display: none;">
           <span id="coachFilterText" style="font-weight: 500;">Filtered by Director</span>
           <button class="clear-filter-btn" onclick="clearDirectorFilter()">Show All</button>
         </div>
 
         <div class="cards-list" id="coachesList" style="flex: 1; overflow-y: auto;" ondragover="handleDragOverList(event)" ondragleave="handleDragLeaveList(event)" ondrop="handleDropOnCoachList(event)">
-          <!-- Area Coaches loaded dynamically by database listeners -->
+          <!-- District Managers loaded dynamically by database listeners -->
         </div>
       </div>
 
@@ -1851,7 +1892,7 @@
         <select id="mapColorBy" onchange="__mapSetColorBy(this.value)"
           style="width:100%;font-size:0.85rem;padding:9px 10px;border:1px solid rgba(255,255,255,0.14);border-radius:8px;background:rgba(255,255,255,0.06);color:#fff;font-weight:600;cursor:pointer;outline:none;">
           <option value="brand" selected style="background:#1a1650;color:#fff;">Brand</option>
-          <option value="coach" style="background:#1a1650;color:#fff;">Area Coach</option>
+          <option value="coach" style="background:#1a1650;color:#fff;">District Manager</option>
           <option value="director" style="background:#1a1650;color:#fff;">Director</option>
           <option value="entity" style="background:#1a1650;color:#fff;">Entity</option>
           <option value="tech" style="background:#1a1650;color:#fff;">Repair Tech</option>
@@ -2011,7 +2052,7 @@
           </div>
 
           <div class="form-group" id="groupAssignedCoach" style="display: none;">
-            <label>Assigned Area Coach</label>
+            <label>Assigned District Manager</label>
             <div id="coachPicker" class="picker"></div>
             <div id="coachDirectorHint" class="picker-hint"></div>
           </div>
@@ -2051,7 +2092,7 @@
               <li><strong>2. Compact GPS Format (7 columns):</strong><br><span style="color: #475569;">Store Name &bull; Address &bull; City &bull; State &bull; Zip &bull; Latitude &bull; Longitude</span></li>
               <li><strong>3. Classic Format (7-8 columns):</strong><br><span style="color: #475569;">[Entity] &bull; Store Name &bull; Store Manager &bull; Address &bull; City &bull; State &bull; Zip &bull; Phone</span></li>
             </ul>
-            <div style="margin-top: 4px;">With a header row, these are matched by name too: <span style="color: #475569;">Store # &bull; DBA Name &bull; Director &bull; Area Coach &bull; Manager Cell &bull; AGM &bull; AGM Cell</span></div>
+            <div style="margin-top: 4px;">With a header row, these are matched by name too: <span style="color: #475569;">Store # &bull; DBA Name &bull; Director &bull; District Manager &bull; Manager Cell &bull; AGM &bull; AGM Cell</span></div>
           </div>
           <textarea id="batchTextArea" rows="7" style="width: 100%; padding: 10px; font-family: monospace; font-size: 0.8rem; border: 1px solid #cbd5e1; border-radius: 4px; resize: vertical;" placeholder="Buddy's Enterprises Inc.	Paradise Quick Stop #02	Kabir Bodhani	521 E. Hwy 121	Lewisville	TX	75057	(972) 219-0096	32.9906715	-96.97804" oninput="previewBatchInput()"></textarea>
         </div>
@@ -2064,7 +2105,7 @@
             </select>
           </div>
           <div class="form-group">
-            <label for="batchDefaultCoach">Assign to Area Coach</label>
+            <label for="batchDefaultCoach">Assign to District Manager</label>
             <select id="batchDefaultCoach" onchange="syncBatchDirector(this.value)">
               <option value="">-- Direct Report to Director --</option>
             </select>
@@ -3030,7 +3071,7 @@
       });
     }
 
-    // Render area coaches column
+    // Render district managers column
     function renderCoaches() {
       const listDiv = document.getElementById("coachesList");
       const countSpan = document.getElementById("coachCount");
@@ -3063,7 +3104,7 @@
       countSpan.innerText = keys.length;
 
       if (keys.length === 0) {
-        listDiv.innerHTML = `<div class="card" style="text-align: center; color: var(--text-muted); pointer-events: none;">No Area Coaches matched.</div>`;
+        listDiv.innerHTML = `<div class="card" style="text-align: center; color: var(--text-muted); pointer-events: none;">No District Managers matched.</div>`;
         return;
       }
 
@@ -3575,7 +3616,7 @@
       if (elemType === "director" && coach) {
         const storeIds = storesForDirector(elemId);
         const dirName = directors[elemId] && directors[elemId].name;
-        confirmBulkAssign(storeIds, dirName, coach.name, "area coach",
+        confirmBulkAssign(storeIds, dirName, coach.name, "district manager",
           () => performLockedAction(() => bulkAddCoachToStores(storeIds, targetCoachId)));
       }
     }
@@ -4027,7 +4068,7 @@
     // Most stores have a single coach, so the common case reads as a plain <select>.
 
     const PICKERS = {
-      coach: { box: "coachPicker", src: () => areaCoaches, label: "area coach", onChange: () => onCoachPickChange() },
+      coach: { box: "coachPicker", src: () => areaCoaches, label: "district manager", onChange: () => onCoachPickChange() },
       tech:  { box: "techPicker",  src: () => repairTechnicians, label: "repair tech", onChange: null }
     };
 
@@ -4419,7 +4460,8 @@
           
           columns.forEach((col, colIdx) => {
             const val = col.toLowerCase();
-            if (val.includes('area coach') || val.includes('areacoach') || val === 'coach' || val === 'ac') {
+            if (val.includes('district manager') || val.includes('districtmanager') || val === 'dm' ||
+                val.includes('area coach') || val.includes('areacoach') || val === 'coach' || val === 'ac') {
               headerIndices.areaCoach = colIdx;
             } else if (val === 'director' || val.includes('director')) {
               headerIndices.director = colIdx;
@@ -5306,7 +5348,7 @@
         .map(d => (directors[d] && directors[d].name) || d)
         .join(" and ");
       return confirm(
-        "Heads up: these area coaches report to different directors (" + names + ").\n\n" +
+        "Heads up: these district managers report to different directors (" + names + ").\n\n" +
         "A store is expected to sit under a single director. Assigning them both will file " +
         "this store under " + ((directors[res.directorIds[0]] && directors[res.directorIds[0]].name) || "the first director") + ".\n\n" +
         "Continue anyway?"
@@ -5586,7 +5628,7 @@
     function calculateNetChanges() {
       const logs = [];
 
-      // 1. Evaluate Area Coaches changes, creations, and removals
+      // 1. Evaluate District Managers changes, creations, and removals
       Object.keys(areaCoaches).forEach(id => {
         const coach = areaCoaches[id];
         const initial = initialCoaches[id];
@@ -5595,14 +5637,14 @@
           const dirName = coach.assignedDirectorId && directors[coach.assignedDirectorId] ? directors[coach.assignedDirectorId].name : 'No Director';
           logs.push({
             id: id,
-            text: `Area Coach "${coach.name}": Added (Director: "${dirName}")`
+            text: `District Manager "${coach.name}": Added (Director: "${dirName}")`
           });
         } else if (coach.assignedDirectorId !== initial.assignedDirectorId) {
           const currentDirName = coach.assignedDirectorId && directors[coach.assignedDirectorId] ? directors[coach.assignedDirectorId].name : 'No Director';
           const initialDirName = initial.assignedDirectorId && directors[initial.assignedDirectorId] ? directors[initial.assignedDirectorId].name : 'No Director';
           logs.push({
             id: id,
-            text: `Area Coach "${coach.name}": Reassigned to Director "${currentDirName}" (Was: "${initialDirName}")`
+            text: `District Manager "${coach.name}": Reassigned to Director "${currentDirName}" (Was: "${initialDirName}")`
           });
         }
       });
@@ -5611,7 +5653,7 @@
         if (!areaCoaches[id]) {
           logs.push({
             id: id,
-            text: `Area Coach "${initialCoaches[id].name}": Removed from directory`
+            text: `District Manager "${initialCoaches[id].name}": Removed from directory`
           });
         }
       });
@@ -6334,11 +6376,52 @@
       __toggleMapView(checkbox.checked);
     };
 
+    // ---- view gate ----
+    // VIEW_PASSWORD only unlocks reading. Editing still requires EDIT_PASSWORD
+    // ("dpm6"), which is the one the API actually checks on writes.
+    const VIEW_PASSWORD = "76051";
+    let viewUnlocked = false;
+
+    function submitViewGate() {
+      const input = document.getElementById("viewGateInput");
+      const err = document.getElementById("viewGateError");
+      if (!input) return;
+      if (input.value.trim() !== VIEW_PASSWORD) {
+        err.innerText = "Incorrect access code. Contact IT Support for access.";
+        input.value = "";
+        input.focus();
+        return;
+      }
+      err.innerText = "";
+      viewUnlocked = true;
+      // Remember for this tab only, so a refresh doesn't re-prompt but closing
+      // the browser does. sessionStorage is per-tab and clears on close.
+      try { sessionStorage.setItem("dpmViewOk", "1"); } catch (e) {}
+      revealApp();
+    }
+
+    function revealApp() {
+      const gate = document.getElementById("viewGate");
+      if (gate) gate.classList.add("hidden");
+      mShow("store");
+      loadDashboardData();
+    }
+
     // ---- startup ----
     // Must run last: const/let above are not hoisted, so calling these earlier
     // hits the temporal dead zone and kills the whole script.
-    mShow("store");
-    loadDashboardData();
+    // Nothing loads until the view gate passes.
+    (function initViewGate() {
+      let already = false;
+      try { already = sessionStorage.getItem("dpmViewOk") === "1"; } catch (e) {}
+      if (already) {
+        viewUnlocked = true;
+        revealApp();
+      } else {
+        const input = document.getElementById("viewGateInput");
+        if (input) input.focus();
+      }
+    })();
 
   </script>
 
