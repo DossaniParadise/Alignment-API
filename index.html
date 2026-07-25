@@ -909,6 +909,17 @@
     .field-private { font-weight: 400; font-size: .65rem; color: #b45309; letter-spacing: .01em; }
     .field-opt { font-weight: 400; font-size: .65rem; color: #94a3b8; }
 
+    /* --- technician specialties + zone colour --- */
+    .tech-cat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:6px}
+    .tech-cat-chk{display:flex;align-items:center;gap:7px;padding:8px 10px;border:1px solid var(--color-border,#d7d7d7);
+      border-radius:8px;font-size:13px;cursor:pointer;background:#fff;min-height:38px}
+    .tech-cat-chk:has(input:checked){border-color:var(--red-600);background:var(--red-50);font-weight:600}
+    .tech-cat-chk input{width:16px;height:16px;cursor:pointer}
+    .tech-swatches{display:flex;gap:8px;flex-wrap:wrap}
+    .tech-sw{width:34px;height:34px;border-radius:50%;border:3px solid transparent;cursor:pointer;padding:0;
+      box-shadow:0 0 0 1px rgba(0,0,0,.15)}
+    .tech-sw.on{border-color:#111;transform:scale(1.08)}
+
     /* --- view gate: covers the app until the access code is entered --- */
     .view-gate {
       position: fixed; inset: 0; z-index: 100000;
@@ -2058,6 +2069,18 @@
             <div id="coachDirectorHint" class="picker-hint"></div>
           </div>
 
+          <!-- Technician-only: specialties + zone colour. Read by DPM FixMi. -->
+          <div class="form-group" id="groupTechCategories" style="display: none;">
+            <label>Specialties <span style="font-weight:400;opacity:.7">(leave all unchecked = general, handles everything)</span></label>
+            <div id="techCatGrid" class="tech-cat-grid"></div>
+          </div>
+
+          <div class="form-group" id="groupTechColor" style="display: none;">
+            <label>Zone colour <span style="font-weight:400;opacity:.7">(used on the map in FindMi and FixMi)</span></label>
+            <div id="techColorSwatches" class="tech-swatches"></div>
+            <input type="hidden" id="inputTechColor">
+          </div>
+
           <div class="form-group" id="groupAssignedTech" style="display: none;">
             <label>Assigned Repair Technician</label>
             <div id="techPicker" class="picker"></div>
@@ -2223,6 +2246,7 @@
         repairTechnicians = data.repairTechnicians || {};
         entities = data.entities || {};
         restaurants = data.restaurants || {};
+        adminsNode = data.admins || {};   // shared config: ticketCategories + techMeta
 
         loadedPaths = { directors: true, areaCoaches: true, restaurants: true, repairTechnicians: true, entities: true };
 
@@ -2243,6 +2267,7 @@
     let areaCoaches = {};
     let restaurants = {};
     let repairTechnicians = {};
+    let adminsNode = {};
     let entities = {};
 
     let selectedDirectorId = null;
@@ -2559,6 +2584,7 @@
 
     // 4. RENDERING ROUTINES FOR THE 3 VIEWS
     function renderAll() {
+      autoLockTechColors();
       renderDirectors();
       renderTechnicians();
       renderCoaches();
@@ -3957,6 +3983,7 @@
         document.getElementById("modalTitle").innerText = titleText;
         
         setupFormFields(type);
+        if (type === "technician") { renderTechCatGrid([]); renderTechSwatches(""); }
 
         // Populate Form inputs
         if (type === "director") {
@@ -3969,6 +3996,9 @@
           document.getElementById("inputName").value = item.name || "";
           document.getElementById("inputEmail").value = item.email || "";
           document.getElementById("inputPhone").value = item.phone || "";
+          renderTechCatGrid(Array.isArray(techMetaOf(id).categories) ? techMetaOf(id).categories : (Array.isArray(item.categories) ? item.categories : []));
+          // Pre-fill with the colour currently in use, so simply saving locks it in.
+          renderTechSwatches(techMetaOf(id).color || item.color || techColorFor(id));
         } else if (type === "entity") {
           const item = entities[id];
           document.getElementById("inputName").value = item ? item.name || "" : "";
@@ -4026,6 +4056,29 @@
       "groupManagerCell", "groupAgm", "groupAgmCell", "groupAddress", "groupEntity",
       "groupLatitude", "groupLongitude", "groupAssignedCoach", "groupAssignedTech"];
 
+    /* Render the technician specialty checkboxes + colour swatches. */
+    function renderTechCatGrid(selected){
+      const host=document.getElementById("techCatGrid"); if(!host)return;
+      const sel=Array.isArray(selected)?selected:[];
+      host.innerHTML=Object.entries(techCategoryList()).map(([k,label])=>
+        `<label class="tech-cat-chk"><input type="checkbox" value="${k}"${sel.indexOf(k)!==-1?" checked":""}><span>${escapeHtml(label)}</span></label>`).join("");
+    }
+    function renderTechSwatches(current){
+      const host=document.getElementById("techColorSwatches"); if(!host)return;
+      const cur=current||"";
+      document.getElementById("inputTechColor").value=cur;
+      host.innerHTML=TECH_PALETTE.map(c=>
+        `<button type="button" class="tech-sw${c.toLowerCase()===cur.toLowerCase()?" on":""}" style="background:${c}" data-c="${c}" title="${c}" onclick="pickTechColor('${c}')"></button>`).join("");
+    }
+    function pickTechColor(c){
+      document.getElementById("inputTechColor").value=c;
+      document.querySelectorAll("#techColorSwatches .tech-sw").forEach(b=>
+        b.classList.toggle("on",(b.getAttribute("data-c")||"").toLowerCase()===c.toLowerCase()));
+    }
+    function readTechCategories(){
+      return Array.from(document.querySelectorAll("#techCatGrid input:checked")).map(i=>i.value);
+    }
+
     function setupFormFields(type) {
       const isStore = type === "restaurant";
       const show = (id, on) => {
@@ -4035,6 +4088,8 @@
       STORE_ONLY_GROUPS.forEach(id => show(id, isStore));
       show("groupName", !isStore);
       show("groupAssignedDirector", type === "coach" || isStore);
+      show("groupTechCategories", type === "technician");
+      show("groupTechColor", type === "technician");
     }
 
     // Dynamic select inputs helpers
@@ -4173,11 +4228,19 @@
           phone: formatPhoneNumber(document.getElementById("inputPhone").value)
         };
       } else if (type === "technician") {
+        const existingTech = repairTechnicians[id] || {};
         updates[`repairTechnicians/${id}`] = {
+          ...existingTech,
           id: id,
           name: document.getElementById("inputName").value,
           email: document.getElementById("inputEmail").value,
-          phone: formatPhoneNumber(document.getElementById("inputPhone").value)
+          phone: formatPhoneNumber(document.getElementById("inputPhone").value),
+        };
+        // Shared with DPM FixMi. [] categories = general-purpose (handles everything).
+        updates[`admins/techMeta/${id}`] = {
+          categories: readTechCategories(),
+          color: document.getElementById("inputTechColor").value || techColorFor(id),
+          updatedAt: Date.now()
         };
       } else if (type === "entity") {
         updates[`entities/${id}`] = {
@@ -5788,6 +5851,76 @@
       return { key: "other", label: "Other" };
     }
 
+    /* ================= SHARED WITH DPM FixMi — KEEP IN SYNC =================
+       Tech specialties and zone colours live on the technician record so both
+       apps read the identical value. A tech with NO categories is treated as
+       general-purpose (handles everything) — that keeps existing techs working
+       until they are explicitly specialised.
+       Colours are LOCKED PER TECH: an explicit tech.color wins; otherwise a
+       fixed palette indexed by alphabetical position. Because the palette is
+       fixed (not divided by the number of techs), adding a new tech no longer
+       re-shuffles everyone else's colour.
+       ====================================================================== */
+    const DEFAULT_TECH_CATEGORIES = {
+      cooling:"Cooling", electrical:"Electrical", equipment:"Equipment", heating:"Heating",
+      it:"IT", lighting:"Lighting", marketing:"Marketing", plumbing:"Plumbing",
+      safety:"Safety", structural:"Structural", other:"Other"
+    };
+    /* The live list is edited in DPM FixMi's Settings and stored at
+       admins/ticketCategories, so both apps always offer the same choices. */
+    function techCategoryList(){
+      const stored = adminsNode.ticketCategories;
+      const out = {};
+      if (Array.isArray(stored)) stored.forEach(c => { if (c && c.key) out[c.key] = c.label || c.key; });
+      else if (stored && typeof stored === "object")
+        Object.entries(stored).forEach(([k,v]) => { out[k] = typeof v === "string" ? v : (v && v.label) || k; });
+      return Object.keys(out).length ? out : DEFAULT_TECH_CATEGORIES;
+    }
+    /* Specialties + colour live at admins/techMeta so BOTH apps can write them
+       (FixMi's API may only write under admins/). */
+    function techMetaOf(id){ return (adminsNode.techMeta || {})[id] || {}; }
+    // index 0,1,2 reproduce today's Gino=red / Ravay=green / Zamir=blue
+    const TECH_PALETTE = ["#e8091b","#16a34a","#2b64c6","#8b5cf6","#ea580c","#0d9488","#db2777","#ca8a04"];
+    function techColorFor(techId){
+      const t = repairTechnicians[techId];
+      const locked = techMetaOf(techId).color || (t && t.color);
+      if (locked) return locked;                              // locked value wins
+      // Unlocked techs take the first palette slot no LOCKED tech already owns,
+      // walking alphabetically, so a new hire never duplicates an existing zone.
+      const colOf = id => techMetaOf(id).color || (repairTechnicians[id] || {}).color;
+      const taken = new Set(Object.keys(repairTechnicians).map(colOf).filter(Boolean).map(c => String(c).toLowerCase()));
+      const unlocked = Object.keys(repairTechnicians).filter(id => !colOf(id))
+        .sort((a,b)=>((repairTechnicians[a]||{}).name||"").localeCompare(((repairTechnicians[b]||{}).name||"")) || a.localeCompare(b));
+      const free = TECH_PALETTE.filter(c => !taken.has(c.toLowerCase()));
+      const pool = free.length ? free : TECH_PALETTE;
+      const i = unlocked.indexOf(techId);
+      return pool[(i<0?0:i) % pool.length];
+    }
+    /* Freeze today's colours into the directory the first time we see a tech
+       without one. Without this the fallback would re-order the moment a new
+       technician is added, and FixMi would drift with it. Idempotent: it only
+       writes techs that are missing a colour, once per session. */
+    let __colorLockDone = false;
+    function autoLockTechColors(){
+      if (__colorLockDone) return;
+      const ids = Object.keys(repairTechnicians).filter(id => !techMetaOf(id).color && !(repairTechnicians[id]||{}).color);
+      if (!ids.length) { __colorLockDone = true; return; }
+      __colorLockDone = true;
+      const updates = {};
+      adminsNode.techMeta = adminsNode.techMeta || {};
+      ids.forEach(id => {
+        const c = techColorFor(id);
+        adminsNode.techMeta[id] = { ...(adminsNode.techMeta[id]||{}), color: c };
+        updates[`admins/techMeta/${id}/color`] = c;
+      });
+      db.ref().update(updates, (err) => {
+        if (err) {   // roll back the local reflection so we retry next load
+          ids.forEach(id => { if (adminsNode.techMeta && adminsNode.techMeta[id]) delete adminsNode.techMeta[id].color; });
+          __colorLockDone = false;
+        }
+      });
+    }
+
     // Evenly spaced distinct hues, stable per ordered list.
     const __BRAND_COLORS = {
       "brand:fastfood": "#e8091b", // red
@@ -5799,12 +5932,31 @@
       const colors = {}; const n = Math.max(groupKeys.length, 1);
       groupKeys.forEach((k, i) => {
         if (__BRAND_COLORS[k]) { colors[k] = __BRAND_COLORS[k]; return; }
+        // Techs use their locked per-person colour so the map matches DPM FixMi
+        // and never re-shuffles when a technician is added or removed.
+        if (k.indexOf("tech:") === 0) { colors[k] = techColorFor(k.slice(5)); return; }
         const hue = Math.round((i * 360) / n);
         const sat = 70 + (i % 3) * 7;
         const light = 48 + (i % 2) * 6;
         colors[k] = `hsl(${hue}, ${sat}%, ${light}%)`;
       });
       return colors;
+    }
+
+    /* In tech mode a store can belong to SEVERAL groups at once — two techs may
+       both cover it. Returning every group (instead of just ids[0]) keeps each
+       technician independent on the map and in the legend, which matters where
+       their territories overlap. Other modes stay single-group. */
+    function __mapGroupsOf(rest) {
+      if (__mapColorBy === "tech") {
+        const ids = getTechIds(rest);
+        if (!ids.length) return [];
+        return ids
+          .filter(id => repairTechnicians[id])
+          .map(id => ({ key: "tech:" + id, label: repairTechnicians[id].name }));
+      }
+      const g = __mapGroupOf(rest);
+      return g ? [g] : [];
     }
 
     function __mapGroupOf(rest) {
@@ -5895,14 +6047,35 @@
     }
 
     // Build a colored teardrop pin as a Leaflet divIcon.
+    // `color` may be a single colour OR an array — a store covered by two techs
+    // gets ONE pin split into equal vertical bands (half/half), rather than
+    // stacking duplicate pins on the map.
+    let __pinUid = 0;
+    const __PIN_PATH = "M13 0C5.82 0 0 5.82 0 13c0 9.2 13 21 13 21s13-11.8 13-21C26 5.82 20.18 0 13 0z";
     function __mapPinIcon(color, hollow) {
-      const fill = hollow ? "#ffffff" : color;
+      const list = (Array.isArray(color) ? color : [color]).filter(Boolean);
       const stroke = hollow ? "#94a3b8" : "#ffffff";
-      const inner = hollow ? color : "#ffffff";
+      const inner  = hollow ? (list[0] || "#64748b") : "#ffffff";
+      let body;
+      if (hollow) {
+        body = '<path d="' + __PIN_PATH + '" fill="#ffffff"/>';
+      } else if (list.length <= 1) {
+        body = '<path d="' + __PIN_PATH + '" fill="' + (list[0] || "#64748b") + '"/>';
+      } else {
+        // Clip equal vertical bands to the teardrop silhouette.
+        const id = "dpmpin" + (++__pinUid);
+        const w = 26 / list.length;
+        const bands = list.map((c, i) =>
+          '<rect x="' + (i * w).toFixed(3) + '" y="0" width="' + (w + 0.02).toFixed(3) + '" height="34" fill="' + c + '"/>'
+        ).join("");
+        body = '<defs><clipPath id="' + id + '"><path d="' + __PIN_PATH + '"/></clipPath></defs>' +
+               '<g clip-path="url(#' + id + ')">' + bands + '</g>';
+      }
       const html =
         '<div style="position:relative;width:26px;height:34px;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.5));">' +
           '<svg width="26" height="34" viewBox="0 0 26 34" xmlns="http://www.w3.org/2000/svg">' +
-            '<path d="M13 0C5.82 0 0 5.82 0 13c0 9.2 13 21 13 21s13-11.8 13-21C26 5.82 20.18 0 13 0z" fill="' + fill + '" stroke="' + stroke + '" stroke-width="2"/>' +
+            body +
+            '<path d="' + __PIN_PATH + '" fill="none" stroke="' + stroke + '" stroke-width="2"/>' +
             '<circle cx="13" cy="13" r="4.5" fill="' + inner + '"/>' +
           '</svg>' +
         '</div>';
@@ -5951,7 +6124,7 @@
       // Turning it back on immediately re-fits to the current filter (or all).
       if (__mapAutoZoom) {
         const matches = __mapActiveGroup
-          ? __mapMarkers.filter((m) => m.groupKey === __mapActiveGroup)
+          ? __mapMarkers.filter((m) => ((m.groupKeys && m.groupKeys.length) ? m.groupKeys : [m.groupKey]).indexOf(__mapActiveGroup) !== -1)
           : null;
         __mapFlyToMarkers(matches);
       }
@@ -6010,17 +6183,19 @@
       __mapRenderLegend();
       // Zoom: to the group's pins when selecting, back to all when clearing.
       const matches = __mapActiveGroup
-        ? __mapMarkers.filter((m) => m.groupKey === __mapActiveGroup)
+        ? __mapMarkers.filter((m) => ((m.groupKeys && m.groupKeys.length) ? m.groupKeys : [m.groupKey]).indexOf(__mapActiveGroup) !== -1)
         : null;
       if (__mapIsMobileDrawer()) __mapCloseDrawers();
       if (__mapAutoZoom) __mapFlyToMarkers(matches);
     };
 
     function __mapApplyDim() {
-      __mapMarkers.forEach(({ marker, groupKey }) => {
+      __mapMarkers.forEach(({ marker, groupKey, groupKeys }) => {
         const el = marker._icon;
         if (!el) return;
-        el.style.opacity = (__mapActiveGroup && groupKey !== __mapActiveGroup) ? "0.2" : "1";
+        const keys = (groupKeys && groupKeys.length) ? groupKeys : [groupKey];
+        const inGroup = !__mapActiveGroup || keys.indexOf(__mapActiveGroup) !== -1;
+        el.style.opacity = inGroup ? "1" : "0.2";
       });
     }
 
@@ -6220,12 +6395,13 @@
       const plotted = [], missing = [];
       Object.entries(restaurants).forEach(([restId, rest]) => {
         const ll = __mapLatLng(rest);
-        const g = __mapGroupOf(rest);
-        if (g) {
+        const gs = __mapGroupsOf(rest);
+        gs.forEach(g => {
           if (!(g.key in groupLabel)) { groupOrder.push(g.key); groupLabel[g.key] = g.label; groupCount[g.key] = 0; }
           groupCount[g.key]++;
-        } else if (ll) { unassigned++; }
-        if (ll) plotted.push({ restId, rest, ll, groupKey: g ? g.key : null });
+        });
+        if (!gs.length && ll) unassigned++;
+        if (ll) plotted.push({ restId, rest, ll, groupKeys: gs.map(g => g.key) });
         else missing.push({ restId, rest });
       });
       const colors = __mapBuildColors(groupOrder);
@@ -6281,16 +6457,19 @@
       } catch (e) {}
 
       const bounds = [];
-      plotted.forEach(({ restId, rest, ll, groupKey }) => {
-        const isAssigned = !!groupKey;
-        const color = isAssigned ? (colors[groupKey] || "#64748b") : "#64748b";
-        const marker = L.marker(ll, { icon: __mapPinIcon(color, !isAssigned), riseOnHover: true, bubblingMouseEvents: false }).addTo(map);
-        // Tooltips are hover-based; on touch they can flicker and block taps, so only bind on non-touch.
+      plotted.forEach(({ restId, rest, ll, groupKeys }) => {
+        const keys = (groupKeys || []).filter(Boolean);
+        const isAssigned = keys.length > 0;
+        // One pin per store. Several groups -> a split pin carrying each colour.
+        const cols = isAssigned ? keys.map(k => colors[k] || "#64748b") : ["#64748b"];
+        const marker = L.marker(ll, { icon: __mapPinIcon(cols, !isAssigned), riseOnHover: true, bubblingMouseEvents: false }).addTo(map);
         if (!__isTouchDevice) {
-          marker.bindTooltip((rest.storeName || "Store"), { direction: "top", offset: [0, -30] });
+          const who = keys.length ? " — " + keys.map(k => groupLabel[k]).filter(Boolean).join(" + ") : "";
+          marker.bindTooltip((rest.storeName || "Store") + who, { direction: "top", offset: [0, -30] });
         }
         marker.bindPopup(__mapPopupHtml(restId, rest), { maxWidth: 280, autoPan: true, autoPanPadding: [40, 60] });
-        __mapMarkers.push({ marker, restId, groupKey: groupKey || "__unassigned__" });
+        // Registered under every group so legend filtering still highlights it.
+        __mapMarkers.push({ marker, restId, groupKey: keys[0] || "__unassigned__", groupKeys: keys });
         bounds.push(ll);
       });
 
