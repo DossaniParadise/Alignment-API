@@ -1681,7 +1681,7 @@
   <header>
     <div class="header-logo">
       <h1>DPM FindMi</h1>
-      <span>v4.0 Vercel API</span>
+      <span>v4.2 Vercel API</span>
     </div>
     
     <div class="header-actions">
@@ -1824,6 +1824,7 @@
         <div style="display: flex;">
           <button class="btn btn-primary btn-xs" onclick="openCreateModal('restaurant')">+ Add Store</button>
           <button class="btn btn-success btn-xs" onclick="openBatchImportModal()" style="margin-left: 6px;">Batch Import</button>
+          <button class="btn btn-xs" onclick="openExportModal()" style="margin-left: 6px; background:#0f766e; color:#fff;">⬇ Export</button>
         </div>
       </div>
 
@@ -2099,6 +2100,34 @@
   <!-- ==================================================================== -->
   <!-- MODAL FOR BATCH RESTAURANTS IMPORT                                   -->
   <!-- ==================================================================== -->
+  <!-- Export to Excel: pick columns, then download an .xlsx of the current stores. -->
+  <div class="modal-backdrop" id="exportModal">
+    <div class="modal" style="max-width: 460px;">
+      <div class="modal-header">
+        <h3>Export Stores to Excel</h3>
+        <button class="modal-close" onclick="closeExportModal()">&times;</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:0.8rem; color:#475569; margin-bottom:10px;">
+          Choose the columns to include. The export reflects whatever is currently
+          shown in the Stores list (any active search or filter).
+        </p>
+        <div style="display:flex; gap:8px; margin-bottom:10px;">
+          <button type="button" class="btn btn-xs" onclick="setAllExportCols(true)">Select all</button>
+          <button type="button" class="btn btn-xs" onclick="setAllExportCols(false)">Clear</button>
+          <span id="exportCount" style="margin-left:auto; font-size:0.72rem; color:#64748b; align-self:center;"></span>
+        </div>
+        <div id="exportColumnList" style="display:grid; grid-template-columns:1fr 1fr; gap:4px 14px; max-height:300px; overflow-y:auto; border:1px solid #e2e8f0; border-radius:6px; padding:10px;">
+          <!-- checkboxes injected -->
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn" onclick="closeExportModal()">Cancel</button>
+        <button type="button" class="btn btn-success" id="exportGoBtn" onclick="runExport()">Download .xlsx</button>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-backdrop" id="batchImportModal">
     <div class="modal-card" style="max-width: 650px;">
       <div class="modal-header">
@@ -3409,7 +3438,11 @@
       return keys;
     }
 
+    // Every filter branch funnels through here, so this is the single source of
+    // truth for "what the user is currently looking at" - used by the exporter.
+    let __visibleStoreIds = [];
     function renderRestaurantListPlain(keys, parentContainer) {
+      __visibleStoreIds = keys.slice();
       if (keys.length === 0) {
         const dummy = document.createElement("div");
         dummy.className = "card";
@@ -5599,6 +5632,124 @@
       set("mnCoach",    Object.keys(areaCoaches).length);
       set("mnEntity",   Object.keys(entities).length);
       set("mnStore",    Object.keys(restaurants).length);
+    }
+
+    // ---- Export to Excel ----
+    // Each column: a label and a getter that turns a store record into a cell
+    // value. Relationship columns resolve to readable names, not internal IDs.
+    // Cell numbers are included because this is an authenticated export the user
+    // explicitly builds - unlike the store card, which hides them.
+    const EXPORT_COLUMNS = [
+      { key: "storeNumber", label: "Store #",        get: r => r.storeNumber || "" },
+      { key: "storeName",   label: "Store Name",     get: r => r.storeName || "" },
+      { key: "address",     label: "Address",        get: r => r.address || "" },
+      { key: "phone",       label: "Phone Number",   get: r => r.phone || "" },
+      { key: "email",       label: "Store Email",    get: r => r.email || "" },
+      { key: "manager",     label: "Store Manager",  get: r => r.storeManager || "" },
+      { key: "managerCell", label: "Manager Cell",   get: r => r.managerCell || "" },
+      { key: "agm",         label: "Assistant GM",   get: r => r.assistantManager || "" },
+      { key: "agmCell",     label: "AGM Cell",       get: r => r.assistantManagerCell || "" },
+      { key: "coach",       label: "District Manager", get: r => getCoachNames(r).join(", ") },
+      { key: "director",    label: "Director",       get: r => (r.assignedDirectorId && directors[r.assignedDirectorId]) ? directors[r.assignedDirectorId].name : "" },
+      { key: "tech",        label: "Repair Tech",    get: r => getTechNames(r).join(", ") },
+      { key: "entity",      label: "Entity",         get: r => exportEntityName(r) },
+      { key: "latitude",    label: "Latitude",       get: r => r.latitude || "" },
+      { key: "longitude",   label: "Longitude",      get: r => r.longitude || "" }
+    ];
+    // Columns ticked by default - the common "give me the roster" set.
+    const EXPORT_DEFAULT = ["storeNumber","storeName","address","phone","manager","coach","director"];
+
+    function exportEntityName(r) {
+      if (r.assignedEntityId && entities[r.assignedEntityId]) return entities[r.assignedEntityId].name;
+      return r.entity || "";
+    }
+
+    function openExportModal() {
+      const box = document.getElementById("exportColumnList");
+      box.innerHTML = EXPORT_COLUMNS.map(c => `
+        <label style="display:flex; align-items:center; gap:6px; font-size:0.78rem; cursor:pointer;">
+          <input type="checkbox" value="${c.key}" ${EXPORT_DEFAULT.indexOf(c.key) !== -1 ? "checked" : ""} onchange="updateExportCount()">
+          <span>${escapeHtml(c.label)}</span>
+        </label>`).join("");
+      updateExportCount();
+      document.getElementById("exportModal").classList.add("active");
+    }
+
+    function closeExportModal() {
+      document.getElementById("exportModal").classList.remove("active");
+    }
+
+    function setAllExportCols(on) {
+      document.querySelectorAll("#exportColumnList input[type=checkbox]").forEach(cb => cb.checked = on);
+      updateExportCount();
+    }
+
+    function selectedExportKeys() {
+      return Array.from(document.querySelectorAll("#exportColumnList input:checked")).map(cb => cb.value);
+    }
+
+    function updateExportCount() {
+      const nCols = selectedExportKeys().length;
+      const nRows = exportRowIds().length;
+      const el = document.getElementById("exportCount");
+      if (el) el.innerText = `${nCols} column${nCols === 1 ? "" : "s"} · ${nRows} store${nRows === 1 ? "" : "s"}`;
+      const btn = document.getElementById("exportGoBtn");
+      if (btn) btn.disabled = nCols === 0 || nRows === 0;
+    }
+
+    // Rows to export = whatever the Stores list currently shows (respects the
+    // active search + filter), captured by renderRestaurantListPlain. Falls back
+    // to all stores if nothing has rendered yet.
+    function exportRowIds() {
+      return (__visibleStoreIds && __visibleStoreIds.length) ? __visibleStoreIds.slice() : Object.keys(restaurants);
+    }
+
+    // Load SheetJS on demand (same CDN pattern as Leaflet), then build the file.
+    function runExport() {
+      const cols = EXPORT_COLUMNS.filter(c => selectedExportKeys().indexOf(c.key) !== -1);
+      if (cols.length === 0) return;
+      const btn = document.getElementById("exportGoBtn");
+      btn.disabled = true; btn.innerText = "Preparing…";
+
+      ensureSheetJS(() => {
+        try {
+          const ids = exportRowIds();
+          const header = cols.map(c => c.label);
+          const rows = ids.map(id => {
+            const r = restaurants[id];
+            return cols.map(c => c.get(r));
+          });
+          const aoa = [header].concat(rows);
+          const ws = XLSX.utils.aoa_to_sheet(aoa);
+          // Reasonable column widths from content length.
+          ws["!cols"] = cols.map((c, i) => {
+            const maxLen = Math.max(c.label.length, ...rows.map(row => String(row[i] || "").length));
+            return { wch: Math.min(Math.max(maxLen + 2, 10), 50) };
+          });
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, "Stores");
+          const stamp = new Date().toISOString().slice(0, 10);
+          XLSX.writeFile(wb, `Dossani_Stores_${stamp}.xlsx`);
+          closeExportModal();
+        } catch (e) {
+          alert("Export failed: " + e.message);
+        } finally {
+          btn.disabled = false; btn.innerText = "Download .xlsx";
+        }
+      }, () => {
+        btn.disabled = false; btn.innerText = "Download .xlsx";
+        alert("Could not load the Excel library. Check your connection and try again.");
+      });
+    }
+
+    let __sheetJSLoading = false;
+    function ensureSheetJS(onReady, onError) {
+      if (typeof XLSX !== "undefined") { onReady(); return; }
+      const s = document.createElement("script");
+      s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
+      s.onload = () => onReady();
+      s.onerror = () => onError && onError();
+      document.head.appendChild(s);
     }
 
     function escapeHtml(str) {
