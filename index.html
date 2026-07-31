@@ -1904,7 +1904,7 @@
         </div>
         <select id="mapColorBy" onchange="__mapSetColorBy(this.value)"
           style="width:100%;font-size:0.85rem;padding:9px 10px;border:1px solid rgba(255,255,255,0.14);border-radius:8px;background:rgba(255,255,255,0.06);color:#fff;font-weight:600;cursor:pointer;outline:none;">
-          <option value="brand" selected style="background:#1a1650;color:#fff;">Brand</option>
+          <option value="brand" selected style="background:#1a1650;color:#fff;">Division</option>
           <option value="coach" style="background:#1a1650;color:#fff;">District Manager</option>
           <option value="director" style="background:#1a1650;color:#fff;">Director</option>
           <option value="entity" style="background:#1a1650;color:#fff;">Entity</option>
@@ -2071,6 +2071,11 @@
           </div>
 
           <!-- Technician-only: specialties + zone colour. Read by DPM FixMi. -->
+          <div class="form-group" id="groupDivision" style="display: none;">
+            <label>Division <span style="font-weight:400;opacity:.7">(drives which ticket categories DPM FixMi shows)</span></label>
+            <select id="inputDivision"></select>
+          </div>
+
           <div class="form-group" id="groupTechCategories" style="display: none;">
             <label>Specialties <span style="font-weight:400;opacity:.7">(leave all unchecked = general, handles everything)</span></label>
             <div id="techCatGrid" class="tech-cat-grid"></div>
@@ -4045,6 +4050,7 @@
           document.getElementById("selectAssignedDirector").value = item.assignedDirectorId || "";
         } else if (type === "restaurant") {
           const item = restaurants[id];
+          document.getElementById("inputDivision").value = storeDivision(item);
           document.getElementById("inputStoreNumber").value = item.storeNumber || "";
           document.getElementById("inputStoreName").value = item.storeName || "";
           document.getElementById("inputStoreManager").value = item.storeManager || "";
@@ -4121,6 +4127,12 @@
       STORE_ONLY_GROUPS.forEach(id => show(id, isStore));
       show("groupName", !isStore);
       show("groupAssignedDirector", type === "coach" || isStore);
+      show("groupDivision", isStore);
+      if (isStore) {
+        const dsel = document.getElementById("inputDivision");
+        if (dsel && !dsel.options.length)
+          dsel.innerHTML = DIVISIONS.map(d => `<option value="${d.key}">${d.label}</option>`).join("");
+      }
       show("groupTechCategories", type === "technician");
       show("groupTechColor", type === "technician");
     }
@@ -4313,6 +4325,8 @@
         }
         
         updates[`restaurants/${id}`] = {
+          division: (document.getElementById("inputDivision") && document.getElementById("inputDivision").value)
+                    || guessDivision({ storeName: document.getElementById("inputStoreName").value }),
           id: id,
           storeNumber: formatStoreNumberDigits(document.getElementById("inputStoreNumber").value) || '#',
           storeName: document.getElementById("inputStoreName").value,
@@ -5642,6 +5656,7 @@
     const EXPORT_COLUMNS = [
       { key: "storeNumber", label: "Store #",        get: r => r.storeNumber || "" },
       { key: "storeName",   label: "Store Name",     get: r => r.storeName || "" },
+      { key: "division",    label: "Division",       get: r => divisionLabel(storeDivision(r)) },
       { key: "address",     label: "Address",        get: r => r.address || "" },
       { key: "phone",       label: "Phone Number",   get: r => r.phone || "" },
       { key: "email",       label: "Store Email",    get: r => r.email || "" },
@@ -5657,7 +5672,7 @@
       { key: "longitude",   label: "Longitude",      get: r => r.longitude || "" }
     ];
     // Columns ticked by default - the common "give me the roster" set.
-    const EXPORT_DEFAULT = ["storeNumber","storeName","address","phone","manager","coach","director"];
+    const EXPORT_DEFAULT = ["storeNumber","storeName","division","address","phone","manager","coach","director"];
 
     function exportEntityName(r) {
       if (r.assignedEntityId && entities[r.assignedEntityId]) return entities[r.assignedEntityId].name;
@@ -5991,15 +6006,45 @@
 
     // ---- Brand/category buckets (used for BOTH color-by-Brand and rail folders) ----
     // Ordered rules: first match wins. Falls back to "Other".
-    const __BRAND_RULES = [
-      { key: "fastfood", label: "Fast Food", test: (n) => /burger\s*king|subway/i.test(n) },
-      { key: "carwash",  label: "Car Wash", test: (n) => /car\s*wash|\bwash\b/i.test(n) },
-      { key: "cstore",   label: "C-Store", test: (n) => /\bstop\b|quick\s*stop|travel\s*stop|truck\s*stop/i.test(n) },
+    /* ---- DIVISION -------------------------------------------------------------
+       Division is now a REAL field on the store record (rest.division), because
+       DPM FixMi keys behaviour off it — Burger King stores get the two-level
+       category picker while C-Store and Car Wash keep the flat list. Guessing it
+       from the store name is too fragile for that.
+       Any store without the field set falls back to name detection, so nothing
+       breaks before every store has been tagged. */
+    const DIVISIONS = [
+      { key: "bk",      label: "Burger King" },
+      { key: "cstore",  label: "C-Store" },
+      { key: "carwash", label: "Car Wash" },
+      { key: "subway",  label: "Subway" },
+      { key: "other",   label: "Other" }
     ];
-    function __mapBrandOf(rest) {
+    function divisionLabel(key) {
+      const d = DIVISIONS.find(x => x.key === key);
+      return d ? d.label : "Other";
+    }
+    // Fallback only — used when a store has no division saved yet.
+    const __DIVISION_RULES = [
+      { key: "bk",      test: (n) => /burger\s*king|\bbk\b/i.test(n) },
+      { key: "subway",  test: (n) => /subway/i.test(n) },
+      { key: "carwash", test: (n) => /car\s*wash|\bwash\b/i.test(n) },
+      { key: "cstore",  test: (n) => /\bstop\b|quick\s*stop|travel\s*stop|truck\s*stop/i.test(n) },
+    ];
+    function guessDivision(rest) {
       const n = (rest.storeName || "").trim();
-      for (const r of __BRAND_RULES) { if (r.test(n)) return { key: r.key, label: r.label }; }
-      return { key: "other", label: "Other" };
+      for (const r of __DIVISION_RULES) { if (r.test(n)) return r.key; }
+      return "other";
+    }
+    /* The one function everything else should call. */
+    function storeDivision(rest) {
+      const d = (rest && rest.division || "").trim();
+      if (d && DIVISIONS.some(x => x.key === d)) return d;
+      return guessDivision(rest || {});
+    }
+    function __mapBrandOf(rest) {
+      const k = storeDivision(rest);
+      return { key: k, label: divisionLabel(k) };
     }
 
     /* ================= SHARED WITH DPM FixMi — KEEP IN SYNC =================
